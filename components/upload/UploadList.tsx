@@ -1,4 +1,5 @@
-import { defineComponent, inject, CSSProperties, nextTick } from 'vue';
+import type { CSSProperties } from 'vue';
+import { defineComponent, inject, nextTick } from 'vue';
 import BaseMixin from '../_util/BaseMixin';
 import { getOptionProps, initDefaultProps } from '../_util/props-util';
 import {
@@ -63,7 +64,7 @@ export default defineComponent({
           previewFile(file.originFileObj).then(previewDataUrl => {
             // Need append '' to avoid dead loop
             file.thumbUrl = previewDataUrl || '';
-            this.$forceUpdate();
+            (this as any).$forceUpdate();
           });
         }
       });

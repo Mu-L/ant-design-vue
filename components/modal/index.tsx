@@ -1,5 +1,6 @@
-import { App, Plugin } from 'vue';
-import Modal, { destroyFns, ModalFunc, ModalFuncProps } from './Modal';
+import type { App, Plugin } from 'vue';
+import type { ModalFunc, ModalFuncProps } from './Modal';
+import Modal, { destroyFns } from './Modal';
 import modalConfirm from './confirm';
 import InfoCircleOutlined from '@ant-design/icons-vue/InfoCircleOutlined';
 import CheckCircleOutlined from '@ant-design/icons-vue/CheckCircleOutlined';
@@ -9,40 +10,40 @@ import ExclamationCircleOutlined from '@ant-design/icons-vue/ExclamationCircleOu
 export { IActionButtonProps as ActionButtonProps } from './ActionButton';
 export { ModalProps, ModalFuncProps } from './Modal';
 
-const info = function(props: ModalFuncProps) {
+const info = function (props: ModalFuncProps) {
   const config = {
     type: 'info',
-    icon: <InfoCircleOutlined />,
+    icon: () => <InfoCircleOutlined />,
     okCancel: false,
     ...props,
   };
   return modalConfirm(config);
 };
 
-const success = function(props: ModalFuncProps) {
+const success = function (props: ModalFuncProps) {
   const config = {
     type: 'success',
-    icon: <CheckCircleOutlined />,
+    icon: () => <CheckCircleOutlined />,
     okCancel: false,
     ...props,
   };
   return modalConfirm(config);
 };
 
-const error = function(props: ModalFuncProps) {
+const error = function (props: ModalFuncProps) {
   const config = {
     type: 'error',
-    icon: <CloseCircleOutlined />,
+    icon: () => <CloseCircleOutlined />,
     okCancel: false,
     ...props,
   };
   return modalConfirm(config);
 };
 
-const warning = function(props: ModalFuncProps) {
+const warning = function (props: ModalFuncProps) {
   const config = {
     type: 'warning',
-    icon: <ExclamationCircleOutlined />,
+    icon: () => <ExclamationCircleOutlined />,
     okCancel: false,
     ...props,
   };
@@ -75,7 +76,7 @@ Modal.destroyAll = function destroyAllFn() {
 };
 
 /* istanbul ignore next */
-Modal.install = function(app: App) {
+Modal.install = function (app: App) {
   app.component(Modal.name, Modal);
   return app;
 };

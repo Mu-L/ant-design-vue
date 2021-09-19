@@ -8,14 +8,15 @@ import List from './list';
 import Operation from './operation';
 import LocaleReceiver from '../locale-provider/LocaleReceiver';
 import defaultLocale from '../locale-provider/default';
-import { defaultConfigProvider, RenderEmptyHandler } from '../config-provider';
+import type { RenderEmptyHandler } from '../config-provider';
+import { defaultConfigProvider } from '../config-provider';
 import { withInstall } from '../_util/type';
 
 export type TransferDirection = 'left' | 'right';
 
 export const TransferItem = {
-  key: PropTypes.string.isRequired,
-  title: PropTypes.string.isRequired,
+  key: PropTypes.string,
+  title: PropTypes.string,
   description: PropTypes.string,
   disabled: PropTypes.looseBool,
 };

@@ -11,14 +11,7 @@ const babelConfig = {
       '@babel/preset-env',
       {
         targets: {
-          browsers: [
-            'last 2 versions',
-            'Firefox ESR',
-            '> 1%',
-            'ie >= 11',
-            'iOS >= 8',
-            'Android >= 4',
-          ],
+          browsers: ['last 2 versions', 'Firefox ESR', '> 1%', 'not ie 11'],
         },
       },
     ],
@@ -118,9 +111,7 @@ module.exports = {
         use: [
           {
             loader: MiniCssExtractPlugin.loader,
-            options: {
-              hmr: true,
-            },
+            options: {},
           },
           'css-loader',
         ],
@@ -131,7 +122,7 @@ module.exports = {
     alias: {
       'ant-design-vue/es': path.join(__dirname, './components'),
       'ant-design-vue': path.join(__dirname, './components'),
-      vue$: 'vue/dist/vue.esm-bundler.js',
+      vue$: 'vue/dist/vue.runtime.esm-bundler.js',
     },
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.vue', '.md'],
   },
@@ -139,7 +130,6 @@ module.exports = {
     historyApiFallback: {
       rewrites: [{ from: /./, to: '/index.html' }],
     },
-    disableHostCheck: true,
     hot: true,
     open: true,
   },

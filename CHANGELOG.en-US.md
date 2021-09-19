@@ -10,6 +10,240 @@
 
 ---
 
+## 2.2.8
+
+`2021-09-17`
+
+- 🌟 Upload method supports patch [#4637](https://github.com/vueComponent/ant-design-vue/issues/4637)
+- 🌟 List gutter supports array [d2b721](https://github.com/vueComponent/ant-design-vue/commit/d2b72143f0e15c8716b4ea8f68b2b72eff5cf510)
+- 🐞 Fix Modal type error [#4632](https://github.com/vueComponent/ant-design-vue/issues/4632)
+- 🐞 Fix the problem that AutoComplete cannot reset undefined [741718](https://github.com/vueComponent/ant-design-vue/commit/741718a0f92c790266e7a07d8d129c5673344a7e)
+- 🐞 Fix the missing style of Tag closed icon [#4649](https://github.com/vueComponent/ant-design-vue/issues/4649)
+- 🐞 Fix the problem that the TreeSelect clear button does not display under special conditions [#4655](https://github.com/vueComponent/ant-design-vue/issues/4655)
+- 🐞 Fix useForm immdiate not working issue [#4646](https://github.com/vueComponent/ant-design-vue/issues/4646)
+
+## 2.2.7
+
+`2021-09-08`
+
+- 🌟 Menu supports overflowedIndicator slot [#4515](https://github.com/vueComponent/ant-design-vue/issues/4515)
+- 🌟 useForm supports dynamic rule [#4498](https://github.com/vueComponent/ant-design-vue/issues/4498)
+- 🌟 Select supports Number type [#4570](https://github.com/vueComponent/ant-design-vue/issues/4570)
+- 🐞 Fix the warning problem caused by css zoom [#4554](https://github.com/vueComponent/ant-design-vue/issues/4554)
+- 🐞 Fix Mentions input Chinese error report [#4524](https://github.com/vueComponent/ant-design-vue/issues/4524)
+- 🐞 Fix the issue that AutoComplete does not support global prefixCls [#4566](https://github.com/vueComponent/ant-design-vue/issues/4566)
+- 🐞 Fix Table nested table error report [#4600](https://github.com/vueComponent/ant-design-vue/issues/4600)
+- 🐞 Fix MenuItem danger property under Dropdown has no style problem [#4618](https://github.com/vueComponent/ant-design-vue/issues/4618)
+- 🐞 Fix Modal.xxx and other methods passing appContext invalid problem [#4627](https://github.com/vueComponent/ant-design-vue/issues/4627)
+- 🐞 Fix some TS type errors
+
+## 2.2.6
+
+`2021-08-12`
+
+- 🐞 Fix `Table` expanded list rendering problem [#4507](https://github.com/vueComponent/ant-design-vue/issues/4507)
+- 🐞 Fix `Rate` custom `character` slot not taking effect [#4509](https://github.com/vueComponent/ant-design-vue/issues/4509)
+- 🐞 Add resize-observer-polyfill to fix the problem of reporting errors in low versions of Chrome [#4508](https://github.com/vueComponent/ant-design-vue/issues/4508)
+
+## 2.2.5
+
+`2021-08-11`
+
+- 🌟 `Select` supports customizing nodes through option slots [68c1f4](https://github.com/vueComponent/ant-design-vue/commit/68c1f4550108a3a6bbe4f1b2c5c168523fd6c84a)
+- 🐞 Fix the problem that the pop-up window component in the development environment does not display in the lower version of chrome, and avoid the pop-up window flashing [#4409](https://github.com/vueComponent/ant-design-vue/issues/4409)
+- 🐞 Fix the problem of not scrolling to the active position when `Select` is opened [ccb240](https://github.com/vueComponent/ant-design-vue/commit/ccb24016c07632f49550646c971060c402586c67)
+
+## 2.2.4
+
+`2021-08-10`
+
+- 🌟 Support Vue@3.2 [#4490](https://github.com/vueComponent/ant-design-vue/issues/4490)
+- 🌟 Automatically hide the horizontal scroll bar of `Table` [#4484](https://github.com/vueComponent/ant-design-vue/issues/4484)
+- 🐞 Fix the issue of `Progress` trailColor not taking effect [#4483](https://github.com/vueComponent/ant-design-vue/issues/4483)
+
+## 2.2.3
+
+`2021-08-07`
+
+- 🌟 Use `position: sticky` for the fixed column of `Table` to improve performance and solve the problem of misalignment in some scenes [38569c](https://github.com/vueComponent/ant-design-vue/commit/38569c28c7eb4eaa34f2cc096982daea901062d4)
+- 🌟 `Collapse` supports number type key [#4405](https://github.com/vueComponent/ant-design-vue/issues/4405)
+- 🌟 Optimize the flickering problem of `Tabs` when selected under windows [#4241](https://github.com/vueComponent/ant-design-vue/issues/4241)
+- 🌟 `InputPassword` supports global setting prefixCls [#4430](https://github.com/vueComponent/ant-design-vue/issues/4430)
+- 🐞 Fix `Select` cannot scroll issue [#4396](https://github.com/vueComponent/ant-design-vue/issues/4396)
+- 🐞 Fix `Badge` error reporting under ssr [#4384](https://github.com/vueComponent/ant-design-vue/issues/4384)
+- 🐞 Fix the issue of invalid data fields in `Form` [#4435](https://github.com/vueComponent/ant-design-vue/issues/4435)
+- 🐞 Fix an error when the child element of `FormItem` is a native label [#4383](https://github.com/vueComponent/ant-design-vue/issues/4383)
+- 🐞 Fix the error when `TreeSelect` customize title through slot [#4459](https://github.com/vueComponent/ant-design-vue/issues/4459)
+
+## 2.2.2
+
+`2021-07-11`
+
+- 🌟 Switch added checkedValue and unCheckedValue attributes to customize checked binding value [#4329](https://github.com/vueComponent/ant-design-vue/issues/4329)
+- 🐞 Fix the issue of missing SubMenu animation [#4325](https://github.com/vueComponent/ant-design-vue/issues/4325)
+- 🐞 Fix that there is no red box problem when TimePicker validates the error under Form [#4331](https://github.com/vueComponent/ant-design-vue/issues/4331)
+- 🐞 Fix UploadDragger does not support vite-plugin-components on-demand loading problem [#4334](https://github.com/vueComponent/ant-design-vue/issues/4334)
+- 🐞 Fix the error when TreeSelect customize title through slot [1152e8](https://github.com/vueComponent/ant-design-vue/commit/1152e8cd71cadf9e8fb4797916adca20c0e35974)
+- 🐞 Fix the dropdown submenu style loss issue [#4351](https://github.com/vueComponent/ant-design-vue/issues/4351)
+- TS
+  - Fix the type error of Table in ts 4.3.5 version [#4296](https://github.com/vueComponent/ant-design-vue/issues/4296)
+  - Improve notification type [#4346](https://github.com/vueComponent/ant-design-vue/issues/4346)
+
+## 2.2.1
+
+`2021-07-06`
+
+- 🐞 Fix the issue that the Space component does not take effect in browsers that do not support flex
+- 🐞 Fix the issue of DatePicker triggering scrolling under safari [#4323](https://github.com/vueComponent/ant-design-vue/issues/4323)
+
+## 2.2.0
+
+`2021-07-06`
+
+- 🎉 Refactor the Button component, remove type="danger", and add the `danger` attribute [#4291](https://github.com/vueComponent/ant-design-vue/issues/4291)
+- 🐞 Fix Rate component not updating issue [#4294](https://github.com/vueComponent/ant-design-vue/issues/4294)
+- 🐞 Fix Tree replaceFields error report [#4298](https://github.com/vueComponent/ant-design-vue/issues/4298)
+- 🐞 Fix Modal missing parentContext type problem [#4305](https://github.com/vueComponent/ant-design-vue/issues/4305)
+
+## 2.2.0-rc.1
+
+`2021-06-29`
+
+- 🌟 Change babel configuration, smaller build package size
+- 🌟 Form provides the useForm function natively, and we will deprecate the @ant-design-vue/use library
+- 🐞 Fix the issue that the Form validateFirst property does not trigger reject when there are multiple validation rules [#4273](https://github.com/vueComponent/ant-design-vue/issues/4273)
+- 🐞 Fix List circular references causing errors in Vite [#4263](https://github.com/vueComponent/ant-design-vue/issues/4263)
+- 🐞 Fix the missing item attribute problem in Menu event callback [#4290](https://github.com/vueComponent/ant-design-vue/issues/4290)
+
+## 2.2.0-beta.6
+
+`2021-06-26`
+
+- 🌟 Menu performance optimization [e8b957](https://github.com/vueComponent/ant-design-vue/commit/e8b95784eb1ee0554b0d6b17bdc14e18775f2ae6)
+- 🐞 Fix `Layout` `RangePicker` `WeekPicker` `Textarea` on-demand loading failure
+
+## 2.2.0-beta.5
+
+`2021-06-24`
+
+- 🎉 Support vite-plugin-components to be loaded on demand
+- 🎉 Refactor the List component
+- 🌟 Select adds responsive folding option [656d14](https://github.com/vueComponent/ant-design-vue/commit/656d14fc4e4ef0f781324438f0d58cfb6816d583)
+- 🐞 Fix the problem that the virtual list cannot be scrolled when the Select dynamic update option [b2aa49d](https://github.com/vueComponent/ant-design-vue/commit/b2aa49d064a83c6ce786a6bb4cd9fc5266a5964d)
+- 🐞 Fix the incorrect location of Select keyboard events [604372](https://github.com/vueComponent/ant-design-vue/commit/604372ff2da521dd580ad5229f7dbd445c1c6190)
+- 🐞 Fix the issue that AutoComplete does not support options slot [#4012](https://github.com/vueComponent/ant-design-vue/issues/4012)
+
+## 2.2.0-beta.4
+
+`2021-06-21`
+
+- 🎉 Refactor Descriptions component [#4219](https://github.com/vueComponent/ant-design-vue/issues/4219)
+- 🐞 Fix the issue that Countdown does not trigger the finish event [#4222](https://github.com/vueComponent/ant-design-vue/issues/4222)
+- 🐞 Fix ConfigProvider reporting errors under vue 3.1 [#4225](https://github.com/vueComponent/ant-design-vue/issues/4225)
+- 🐞 Fix the problem of using SubMenu under Dropdown to report an error [#4205](https://github.com/vueComponent/ant-design-vue/issues/4205)
+- 🐞 Fix Col type error [#4226](https://github.com/vueComponent/ant-design-vue/issues/4226)
+- 🐞 Fix the problem that onEnd is not triggered when Typography is out of focus [#4227](https://github.com/vueComponent/ant-design-vue/issues/4227)
+- 🐞 Fix ImagePreview style loss problem [#4231](https://github.com/vueComponent/ant-design-vue/issues/4231)
+
+## 2.2.0-beta.3
+
+`2021-06-11`
+
+- 🎉 Refactor Breadcrumb, Statistic, Tag components
+- 🌟 Statistic supports loading attribute
+- 🐞 Fix the problem of Menu rendering multiple sub-components to improve performance [6ae707](https://github.com/vueComponent/ant-design-vue/commit/6ae707edf508a9c5e8dca7dacf1410de5251bcf8)
+- 🐞 Fix FormItem custom class invalidation [617e53](https://github.com/vueComponent/ant-design-vue/commit/617e534fda2ae6d468b5e9d3eb43370f8a4b0000)
+- 🐞 Fix MenuDivider class error [#4195](https://github.com/vueComponent/ant-design-vue/issues/4195)
+- 🐞 Fix Tag and Image type errors
+- 🐞 Fix the issue of missing component animations such as Modal [#4191](https://github.com/vueComponent/ant-design-vue/issues/4191)
+- 🐞 Fix the issue that Select class cannot be dynamically updated [#4194](https://github.com/vueComponent/ant-design-vue/issues/4194)
+- 🐞 Fix the problem that the Dropdown mail expands and cannot be collapsed by clicking [#4198](https://github.com/vueComponent/ant-design-vue/issues/4198)
+- 🐞 Fix the issue of missing some export methods of FormItem [#4183](https://github.com/vueComponent/ant-design-vue/issues/4183)
+
+## 2.2.0-beta.2
+
+`2021-06-08`
+
+- 🐞 Fix PageHeader display extension problem [4de73](https://github.com/vueComponent/ant-design-vue/commit/4de7737907d485d3dd3be44b70e599cc53edb171)
+- 🐞 Fix the problem that some components cannot be rendered normally under Vue3.1[#4173](https://github.com/vueComponent/ant-design-vue/issues/4173)
+- 🐞 Fix Menu.Divider name error problem [6c5c84](https://github.com/vueComponent/ant-design-vue/commit/6c5c84a3fc4b8abcd7aed0922852a64e0ac293c7)
+
+## 2.2.0-beta.1
+
+`2021-06-17`
+
+- 🔥🔥🔥 Virtual Table independent library released https://www.npmjs.com/package/@surely-vue/table, this component is an independent library, the document example is not yet complete, it is a completely ts-developed component , There are good type hints, there are API documents on npm, those who are in a hurry can explore and use it, here is an online experience example, https://store.antdv.com/pro/preview/list/big-table-list
+- 🔥🔥🔥 Refactored a large number of components, the source code is more readable, the performance is better, and the ts type is more comprehensive -Refactored components in this version Anchor, Alert, Avatar, Badge, BackTop, Col, Form, Layout, Menu, Space, Spin, Switch, Row, Result, Rate
+- 🎉 Menu
+
+  - Better performance [#3300](https://github.com/vueComponent/ant-design-vue/issues/3300)
+  - Fix the problem of incorrect highlighting [#4053](https://github.com/vueComponent/ant-design-vue/issues/4053)
+  - Fix console invalid warning [#4169](https://github.com/vueComponent/ant-design-vue/issues/4169)
+  - Easier to use, simpler to use single file recursion [#4133](https://github.com/vueComponent/ant-design-vue/issues/4133)
+  - 💄 icon icon needs to be passed through slot
+
+- Skeleton
+
+  - 🌟 Support Skeleton.Avatar placeholder component.
+  - 🌟 Support Skeleton.Button placeholder component.
+  - 🌟 Support Skeleton.Input placeholder component.
+
+- 💄 Destructive update
+
+  - The `a-menu-item` and `a-sub-menu` icons need to be passed through the slot, and the icon is not automatically obtained through the sub-node
+  - row gutter supports row-wrap, no need to use multiple rows to divide col
+  - `Menu` removes `defaultOpenKeys` and `defaultSelectedKeys`; `Switch` removes `defaultChecked`; `Rate` removes `defaultValue`; Please be cautious to use the defaultXxx-named attributes of other unrefactored components, and they will be removed in future versions.
+
+- 🌟 Added Avatar.Group component
+- 🐞 Fix AutoComplete filterOptions not taking effect [#4170](https://github.com/vueComponent/ant-design-vue/issues/4170)
+- 🐞 Fix Select automatic width invalidation problem [#4118](https://github.com/vueComponent/ant-design-vue/issues/4118)
+- 🐞 Fix the lack of internationalized files in dist [#3684](https://github.com/vueComponent/ant-design-vue/issues/3684)
+
+## 2.1.6
+
+`2021-05-13`
+
+- 🐞 Use vue@3.0.10 to rebuild to avoid console warning [#3998](https://github.com/vueComponent/ant-design-vue/issues/3998)
+
+## 2.1.5
+
+`2021-05-12`
+
+- 🐞 Fix SSR time reporting error [#3983](https://github.com/vueComponent/ant-design-vue/issues/3983)
+
+## 2.1.4
+
+`2021-05-09`
+
+- 🐞 Fix `Table` scrolling misalignment issue [#4045](https://github.com/vueComponent/ant-design-vue/issues/4045)
+- 🐞 Fix `Typography` editable mode triggering link jump issue [#4105](https://github.com/vueComponent/ant-design-vue/issues/4105)
+- 🐞 Fix the issue that `Carousel` variableWidth does not take effect [#3977](https://github.com/vueComponent/ant-design-vue/issues/3977)
+- 🐞 Fix the problem that `TreeSelect` cannot delete parent and child nodes at the same time through the keyboard [#3508](https://github.com/vueComponent/ant-design-vue/issues/3508)
+- 🐞 Fix some types of errors
+
+## 2.1.3
+
+`2021-04-25`
+
+- 🎉🎉🎉 remove ads during npm installation
+- 🐞 `Select`
+  - Fix the first issue of default activation [#3842](https://github.com/vueComponent/ant-design-vue/issues/3842)
+  - Fix group display abnormal problem [#3841](https://github.com/vueComponent/ant-design-vue/issues/3841)
+  - Fix scrolling abnormal issue after dynamically updating selections [#3972](https://github.com/vueComponent/ant-design-vue/issues/3972)
+- 🐞 Fix the issue that `Checkbox` triggers twice `update:checked` [#3838](https://github.com/vueComponent/ant-design-vue/issues/3838)
+- 🌟 `Table` column group supports fixed [#3882](https://github.com/vueComponent/ant-design-vue/issues/3882)
+- 🌟 `Table` column supports v-for [#3934](https://github.com/vueComponent/ant-design-vue/issues/3934)
+- 🐞 Fix the problem that `Table` displays horizontal scroll bar on windows [6d33d6](https://github.com/vueComponent/ant-design-vue/commit/6d33d60d2bca98825f274e48bcc3badd1857f742)
+- 🌟 `Form` scrollToFirstError supports option parameter passing [#3918](https://github.com/vueComponent/ant-design-vue/issues/3918)
+- 🐞 Fix the issue of `Calendar` month selector displaying wrong characters [#3915](https://github.com/vueComponent/ant-design-vue/issues/3915)
+- 🌟 Refactor the `Switch` component and remove the defaultChecked attribute [#3885](https://github.com/vueComponent/ant-design-vue/issues/3885)
+- 🐞 Fix the process exception when using Vite [#3930](https://github.com/vueComponent/ant-design-vue/issues/3930)
+- 🐞 Fix `Radio` shadow occlusion problem [#3955](https://github.com/vueComponent/ant-design-vue/issues/3955)
+- 🐞 Fix the issue that span does not take effect in `Form` inline mode [#3862](https://github.com/vueComponent/ant-design-vue/issues/3862)
+- 🐞 Fix the issue that `Cascader` keydown selection does not take effect [#958](https://github.com/vueComponent/ant-design-vue/issues/958)
+- 🐞 Fix `Image` preview function failure problem [#3701](https://github.com/vueComponent/ant-design-vue/issues/3701)
+- 🐞 Fix some TS type issues
+
 ## 2.1.2
 
 `2021-03-28`
@@ -282,7 +516,6 @@
 
 ### Compatibility adjustment
 
-- The minimum supported version of IE is IE 11.
 - The minimum supported version of Vue is Vue 3.0.
 
 #### Adjusted API

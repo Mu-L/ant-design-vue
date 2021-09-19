@@ -1,7 +1,8 @@
 import pickAttrs from '../../_util/pickAttrs';
 import Input from './Input';
-import { InnerSelectorProps } from '.';
-import { computed, defineComponent, Fragment, ref, VNodeChild, watch } from 'vue';
+import type { InnerSelectorProps } from './interface';
+import type { VNodeChild } from 'vue';
+import { computed, defineComponent, Fragment, ref, watch } from 'vue';
 import PropTypes from '../../_util/vue-types';
 
 interface SelectorProps extends InnerSelectorProps {
@@ -24,7 +25,7 @@ const props = {
   autofocus: PropTypes.looseBool,
   autocomplete: PropTypes.string,
   accessibilityIndex: PropTypes.number,
-  tabindex: PropTypes.number,
+  tabindex: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   activeValue: PropTypes.string,
   backfill: PropTypes.looseBool,
   onInputChange: PropTypes.func,
@@ -50,7 +51,7 @@ const SingleSelector = defineComponent<SelectorProps>({
       return inputValue;
     });
     watch(
-      computed(() => [combobox.value, props.activeValue]),
+      [combobox, () => props.activeValue],
       () => {
         if (combobox.value) {
           inputChanged.value = false;

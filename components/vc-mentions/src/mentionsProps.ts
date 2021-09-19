@@ -1,4 +1,4 @@
-import { PropType } from 'vue';
+import type { PropType } from 'vue';
 import PropTypes from '../../_util/vue-types';
 import { initDefaultProps } from '../../_util/props-util';
 import {
@@ -20,7 +20,9 @@ export const mentionsProps = {
   placement: PropTypes.oneOf(PlaceMent),
   character: PropTypes.any,
   characterRender: PropTypes.func,
-  filterOption: PropTypes.func,
+  filterOption: {
+    type: [Boolean, Function] as PropType<typeof defaultFilterOption | false>,
+  },
   validateSearch: PropTypes.func,
   getPopupContainer: {
     type: Function as PropType<() => HTMLElement>,

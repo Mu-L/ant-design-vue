@@ -1,12 +1,12 @@
-import { App, Plugin } from 'vue';
+import type { App, Plugin } from 'vue';
 import Spin, { setDefaultIndicator } from './Spin';
 
-export { SpinProps } from './Spin';
+export { SpinProps, getSpinProps } from './Spin';
 
 Spin.setDefaultIndicator = setDefaultIndicator;
 
 /* istanbul ignore next */
-Spin.install = function(app: App) {
+Spin.install = function (app: App) {
   app.component(Spin.name, Spin);
   return app;
 };

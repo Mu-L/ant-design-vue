@@ -1,11 +1,5 @@
-import {
-  defineComponent,
-  ExtractPropTypes,
-  inject,
-  VNodeTypes,
-  CSSProperties,
-  PropType,
-} from 'vue';
+import type { ExtractPropTypes, VNodeTypes, CSSProperties, PropType } from 'vue';
+import { defineComponent, inject } from 'vue';
 import classNames from '../_util/classNames';
 import Dialog from '../vc-dialog';
 import PropTypes from '../_util/vue-types';
@@ -13,14 +7,12 @@ import addEventListener from '../vc-util/Dom/addEventListener';
 import { getConfirmLocale } from './locale';
 import CloseOutlined from '@ant-design/icons-vue/CloseOutlined';
 import Button from '../button';
-import buttonTypes, { ButtonType, ButtonProps as ButtonPropsType } from '../button/buttonTypes';
+import type { ButtonProps as ButtonPropsType, LegacyButtonType } from '../button/buttonTypes';
+import buttonTypes, { convertLegacyProps } from '../button/buttonTypes';
 import LocaleReceiver from '../locale-provider/LocaleReceiver';
 import { getComponent, getSlot } from '../_util/props-util';
 import initDefaultProps from '../_util/props-util/initDefaultProps';
 import { defaultConfigProvider } from '../config-provider';
-
-const ButtonProps = buttonTypes();
-const ButtonType = ButtonProps.type;
 
 let mousePosition: { x: number; y: number } | null = null;
 // ref: https://github.com/ant-design/ant-design/issues/15795
@@ -71,7 +63,9 @@ const modalProps = {
   /** 确认按钮文字*/
   okText: PropTypes.any,
   /** 确认按钮类型*/
-  okType: ButtonType,
+  okType: {
+    type: String as PropType<LegacyButtonType>,
+  },
   /** 取消按钮文字*/
   cancelText: PropTypes.any,
   icon: PropTypes.any,
@@ -79,13 +73,13 @@ const modalProps = {
   maskClosable: PropTypes.looseBool,
   /** 强制渲染 Modal*/
   forceRender: PropTypes.looseBool,
-  okButtonProps: PropTypes.shape(buttonTypes),
-  cancelButtonProps: PropTypes.shape(buttonTypes),
+  okButtonProps: PropTypes.shape(buttonTypes).loose,
+  cancelButtonProps: PropTypes.shape(buttonTypes).loose,
   destroyOnClose: PropTypes.looseBool,
   wrapClassName: PropTypes.string,
   maskTransitionName: PropTypes.string,
   transitionName: PropTypes.string,
-  getContainer: PropTypes.func,
+  getContainer: PropTypes.any,
   zIndex: PropTypes.number,
   bodyStyle: PropTypes.style,
   maskStyle: PropTypes.style,
@@ -101,9 +95,9 @@ export interface ModalFuncProps {
   prefixCls?: string;
   class?: string;
   visible?: boolean;
-  title?: VNodeTypes;
+  title?: string | (() => VNodeTypes) | VNodeTypes;
   closable?: boolean;
-  content?: VNodeTypes;
+  content?: string | (() => VNodeTypes) | VNodeTypes;
   // TODO: find out exact types
   onOk?: (...args: any[]) => any;
   onCancel?: (...args: any[]) => any;
@@ -111,10 +105,10 @@ export interface ModalFuncProps {
   cancelButtonProps?: ButtonPropsType;
   centered?: boolean;
   width?: string | number;
-  okText?: VNodeTypes;
-  okType?: ButtonType;
-  cancelText?: VNodeTypes;
-  icon?: VNodeTypes;
+  okText?: string | (() => VNodeTypes) | VNodeTypes;
+  okType?: LegacyButtonType;
+  cancelText?: string | (() => VNodeTypes) | VNodeTypes;
+  icon?: (() => VNodeTypes) | VNodeTypes;
   /* Deprecated */
   iconType?: string;
   mask?: boolean;
@@ -125,17 +119,19 @@ export interface ModalFuncProps {
   maskStyle?: CSSProperties;
   type?: string;
   keyboard?: boolean;
-  getContainer?: getContainerFunc;
+  getContainer?: getContainerFunc | boolean | string;
   autoFocusButton?: null | 'ok' | 'cancel';
   transitionName?: string;
   maskTransitionName?: string;
+
+  /** @deprecated please use `appContext` instead */
+  parentContext?: any;
+  appContext?: any;
 }
 
 type getContainerFunc = () => HTMLElement;
 
-export type ModalFunc = (
-  props: ModalFuncProps,
-) => {
+export type ModalFunc = (props: ModalFuncProps) => {
   destroy: () => void;
   update: (newConfig: ModalFuncProps) => void;
 };
@@ -190,7 +186,7 @@ export default defineComponent({
       const cancelBtnProps = { onClick: this.handleCancel, ...(this.cancelButtonProps || {}) };
       const okBtnProps = {
         onClick: this.handleOk,
-        type: okType,
+        ...convertLegacyProps(okType),
         loading: confirmLoading,
         ...(this.okButtonProps || {}),
       };

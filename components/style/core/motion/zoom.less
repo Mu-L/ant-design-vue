@@ -1,4 +1,20 @@
 .zoom-motion(@className, @keyframeName, @duration: @animation-duration-base) {
+  @name: ~'@{ant-prefix}-@{className}';
+  .make-motion(@name, @keyframeName, @duration);
+  .@{name}-enter,
+  .@{name}-appear {
+    transform: scale(0); // need this by yiminghe
+    opacity: 0;
+    animation-timing-function: @ease-out-circ;
+
+    &-prepare {
+      transform: none;
+    }
+  }
+  .@{name}-leave {
+    animation-timing-function: @ease-in-out-circ;
+  }
+
   .make-motion(@className, @keyframeName, @duration);
   .@{className}-enter,
   .@{className}-appear {
@@ -54,7 +70,7 @@
     opacity: 0;
   }
   5% {
-    transform: scale(0.2);
+    transform: scale(0.8);
     opacity: 0;
   }
   100% {

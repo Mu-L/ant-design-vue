@@ -250,6 +250,7 @@ const TableRow = {
           indentSize={indentSize}
           indent={indent}
           index={index}
+          colIndex={i}
           column={column}
           key={column.key || column.dataIndex}
           expandIcon={hasExpandIcon(i) && renderExpandIcon()}
@@ -258,8 +259,12 @@ const TableRow = {
       );
     }
 
-    const { class: customClass, className: customClassName, style: customStyle, ...rowProps } =
-      customRow(record, index) || {};
+    const {
+      class: customClass,
+      className: customClassName,
+      style: customStyle,
+      ...rowProps
+    } = customRow(record, index) || {};
 
     let style = { height: typeof height === 'number' ? `${height}px` : height };
 

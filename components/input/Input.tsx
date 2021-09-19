@@ -1,4 +1,5 @@
-import { defineComponent, inject, nextTick, VNode, withDirectives } from 'vue';
+import type { VNode } from 'vue';
+import { defineComponent, inject, nextTick, withDirectives } from 'vue';
 import antInputDirective from '../_util/antInputDirective';
 import classNames from '../_util/classNames';
 import omit from 'omit.js';
@@ -127,7 +128,7 @@ export default defineComponent({
       if (!hasProp(this, 'value')) {
         this.stateValue = value;
       } else {
-        this.$forceUpdate();
+        (this as any).$forceUpdate();
       }
       nextTick(() => {
         callback && callback();

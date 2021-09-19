@@ -1,11 +1,13 @@
 import omit from 'omit.js';
+import type { PropType } from 'vue';
 import { defineComponent, inject } from 'vue';
 import Tooltip from '../tooltip';
 import abstractTooltipProps from '../tooltip/abstractTooltipProps';
 import PropTypes from '../_util/vue-types';
 import { getOptionProps, hasProp, getComponent, mergeProps } from '../_util/props-util';
 import BaseMixin from '../_util/BaseMixin';
-import buttonTypes from '../button/buttonTypes';
+import type { LegacyButtonType } from '../button/buttonTypes';
+import { convertLegacyProps } from '../button/buttonTypes';
 import ExclamationCircleFilled from '@ant-design/icons-vue/ExclamationCircleFilled';
 import Button from '../button';
 import LocaleReceiver from '../locale-provider/LocaleReceiver';
@@ -14,7 +16,6 @@ import { defaultConfigProvider } from '../config-provider';
 import { withInstall } from '../_util/type';
 
 const tooltipProps = abstractTooltipProps();
-const btnProps = buttonTypes();
 
 const Popconfirm = defineComponent({
   name: 'APopconfirm',
@@ -26,7 +27,10 @@ const Popconfirm = defineComponent({
     content: PropTypes.any,
     title: PropTypes.any,
     trigger: tooltipProps.trigger.def('click'),
-    okType: btnProps.type.def('primary'),
+    okType: {
+      type: String as PropType<LegacyButtonType>,
+      default: 'primary',
+    },
     disabled: PropTypes.looseBool.def(false),
     okText: PropTypes.any,
     cancelText: PropTypes.any,
@@ -97,7 +101,7 @@ const Popconfirm = defineComponent({
         ...cancelButtonProps,
       });
       const okBtnProps = mergeProps({
-        type: okType,
+        ...convertLegacyProps(okType),
         size: 'small',
         onClick: this.onConfirmHandle,
         ...okButtonProps,

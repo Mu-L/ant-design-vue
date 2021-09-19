@@ -1,4 +1,5 @@
-import { defineComponent, inject, nextTick, onMounted, ref, PropType } from 'vue';
+import type { PropType, ExtractPropTypes } from 'vue';
+import { defineComponent, inject, nextTick, onMounted, ref } from 'vue';
 import PropTypes from '../_util/vue-types';
 import { getOptionProps } from '../_util/props-util';
 import classNames from '../_util/classNames';
@@ -7,15 +8,16 @@ import DownOutlined from '@ant-design/icons-vue/DownOutlined';
 import VcInputNumber from '../vc-input-number/src';
 import { defaultConfigProvider } from '../config-provider';
 import { tuple, withInstall } from '../_util/type';
+import type { EventHandler } from '../_util/EventInterface';
 
-const InputNumberProps = {
+const inputNumberProps = {
   prefixCls: PropTypes.string,
   min: PropTypes.number,
   max: PropTypes.number,
   value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   step: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).def(1),
   defaultValue: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-  tabindex: PropTypes.number,
+  tabindex: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   disabled: PropTypes.looseBool,
   size: PropTypes.oneOf(tuple('large', 'small', 'default')),
   formatter: PropTypes.func,
@@ -27,15 +29,17 @@ const InputNumberProps = {
   precision: PropTypes.number,
   autofocus: PropTypes.looseBool,
   onPressEnter: {
-    type: Function as PropType<EventHandlerNonNull>,
+    type: Function as PropType<EventHandler>,
   },
   onChange: Function as PropType<(num: number) => void>,
 };
 
+export type InputNumberProps = Partial<ExtractPropTypes<typeof inputNumberProps>>;
+
 const InputNumber = defineComponent({
   name: 'AInputNumber',
   inheritAttrs: false,
-  props: InputNumberProps,
+  props: inputNumberProps,
   setup(props) {
     const inputNumberRef = ref(null);
     const focus = () => {
@@ -62,7 +66,12 @@ const InputNumber = defineComponent({
   },
 
   render() {
-    const { prefixCls: customizePrefixCls, size, class: className, ...others } = {
+    const {
+      prefixCls: customizePrefixCls,
+      size,
+      class: className,
+      ...others
+    } = {
       ...getOptionProps(this),
       ...this.$attrs,
     } as any;

@@ -1,36 +1,50 @@
-import {
-  defineComponent,
-  inject,
-  onBeforeMount,
-  ref,
-  ExtractPropTypes,
-  computed,
-  onMounted,
-  nextTick,
-} from 'vue';
+import type { ExtractPropTypes, PropType } from 'vue';
+import { defineComponent, onBeforeMount, ref, computed, onMounted, nextTick, watch } from 'vue';
 import LoadingOutlined from '@ant-design/icons-vue/LoadingOutlined';
 import PropTypes from '../_util/vue-types';
 import KeyCode from '../_util/KeyCode';
 import Wave from '../_util/wave';
-import { defaultConfigProvider } from '../config-provider';
 import warning from '../_util/warning';
 import { tuple, withInstall } from '../_util/type';
 import { getPropsSlot } from '../_util/props-util';
 import Omit from 'omit.js';
+import useConfigInject from '../_util/hooks/useConfigInject';
 
-export const SwitchSizes = tuple('small', 'default', 'large');
-
+export const SwitchSizes = tuple('small', 'default');
+type CheckedType = boolean | string | number;
 const switchProps = {
   prefixCls: PropTypes.string,
   size: PropTypes.oneOf(SwitchSizes),
   disabled: PropTypes.looseBool,
-  checkedChildren: PropTypes.any,
-  unCheckedChildren: PropTypes.any,
+  checkedChildren: PropTypes.VNodeChild,
+  unCheckedChildren: PropTypes.VNodeChild,
   tabindex: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-  defaultChecked: PropTypes.looseBool,
   autofocus: PropTypes.looseBool,
   loading: PropTypes.looseBool,
-  checked: PropTypes.looseBool,
+  checked: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.looseBool]),
+  checkedValue: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.looseBool]).def(
+    true,
+  ),
+  unCheckedValue: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.number,
+    PropTypes.looseBool,
+  ]).def(false),
+  onChange: {
+    type: Function as PropType<(checked: CheckedType, e: Event) => void>,
+  },
+  onClick: {
+    type: Function as PropType<(checked: CheckedType, e: Event) => void>,
+  },
+  onKeydown: {
+    type: Function as PropType<(e: Event) => void>,
+  },
+  onMouseup: {
+    type: Function as PropType<(e: Event) => void>,
+  },
+  'onUpdate:checked': {
+    type: Function as PropType<(checked: CheckedType) => void>,
+  },
 };
 
 export type SwitchProps = Partial<ExtractPropTypes<typeof switchProps>>;
@@ -40,8 +54,9 @@ const Switch = defineComponent({
   __ANT_SWITCH: true,
   inheritAttrs: false,
   props: switchProps,
+  slots: ['checkedChildren', 'unCheckedChildren'],
   emits: ['update:checked', 'mouseup', 'change', 'click', 'keydown'],
-  setup(props: SwitchProps, { attrs, slots, expose, emit }) {
+  setup(props, { attrs, slots, expose, emit }) {
     onBeforeMount(() => {
       warning(
         !('defaultChecked' in attrs),
@@ -54,9 +69,17 @@ const Switch = defineComponent({
         '`value` is not validate prop, do you mean `checked`?',
       );
     });
+    const checked = ref(props.checked !== undefined ? props.checked : attrs.defaultChecked);
+    const checkedStatus = computed(() => checked.value === props.checkedValue);
 
-    const configProvider = inject('configProvider', defaultConfigProvider);
-    const { getPrefixCls } = configProvider;
+    watch(
+      () => props.checked,
+      () => {
+        checked.value = props.checked;
+      },
+    );
+
+    const { prefixCls } = useConfigInject('switch', props);
     const refSwitchNode = ref();
     const focus = () => {
       refSwitchNode.value?.focus();
@@ -67,13 +90,6 @@ const Switch = defineComponent({
 
     expose({ focus, blur });
 
-    const prefixCls = computed(() => {
-      return getPrefixCls('switch', props.prefixCls);
-    });
-    const checked = computed(() => {
-      return 'checked' in props ? !!props.checked : !!props.defaultChecked;
-    });
-
     onMounted(() => {
       nextTick(() => {
         if (props.autofocus && !props.disabled) {
@@ -82,7 +98,7 @@ const Switch = defineComponent({
       });
     });
 
-    const setChecked = (check: boolean, e: MouseEvent | KeyboardEvent) => {
+    const setChecked = (check: CheckedType, e: MouseEvent | KeyboardEvent) => {
       if (props.disabled) {
         return;
       }
@@ -92,16 +108,16 @@ const Switch = defineComponent({
 
     const handleClick = (e: MouseEvent) => {
       focus();
-      const newChecked = !checked.value;
+      const newChecked = checkedStatus.value ? props.unCheckedValue : props.checkedValue;
       setChecked(newChecked, e);
       emit('click', newChecked, e);
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.keyCode === KeyCode.LEFT) {
-        setChecked(false, e);
+        setChecked(props.unCheckedValue, e);
       } else if (e.keyCode === KeyCode.RIGHT) {
-        setChecked(true, e);
+        setChecked(props.checkedValue, e);
       }
       emit('keydown', e);
     };
@@ -110,6 +126,15 @@ const Switch = defineComponent({
       refSwitchNode.value?.blur();
       emit('mouseup', e);
     };
+
+    const classNames = computed(() => ({
+      [`${prefixCls.value}-small`]: props.size === 'small',
+      [`${prefixCls.value}-loading`]: props.loading,
+      [`${prefixCls.value}-checked`]: checkedStatus.value,
+      [`${prefixCls.value}-disabled`]: props.disabled,
+      [prefixCls.value]: true,
+    }));
+
     return () => (
       <Wave insertExtraNode>
         <button
@@ -120,6 +145,8 @@ const Switch = defineComponent({
             'checked',
             'autofocus',
             'defaultChecked',
+            'checkedValue',
+            'unCheckedValue',
           ])}
           {...attrs}
           onKeydown={handleKeyDown}
@@ -129,19 +156,12 @@ const Switch = defineComponent({
           role="switch"
           aria-checked={checked.value}
           disabled={props.disabled || props.loading}
-          class={{
-            [attrs.class as string]: attrs.class,
-            [prefixCls.value]: true,
-            [`${prefixCls.value}-small`]: props.size === 'small',
-            [`${prefixCls.value}-loading`]: props.loading,
-            [`${prefixCls.value}-checked`]: checked.value,
-            [`${prefixCls.value}-disabled`]: props.disabled,
-          }}
+          class={[attrs.class, classNames.value]}
           ref={refSwitchNode}
         >
           {props.loading ? <LoadingOutlined class={`${prefixCls.value}-loading-icon`} /> : null}
           <span class={`${prefixCls.value}-inner`}>
-            {checked.value
+            {checkedStatus.value
               ? getPropsSlot(slots, props, 'checkedChildren')
               : getPropsSlot(slots, props, 'unCheckedChildren')}
           </span>

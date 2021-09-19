@@ -59,6 +59,7 @@ const Line = (_, { attrs, slots }) => {
     size,
     strokeColor,
     strokeLinecap,
+    trailColor,
   } = attrs;
   let backgroundProps;
   if (strokeColor && typeof strokeColor !== 'string') {
@@ -68,6 +69,12 @@ const Line = (_, { attrs, slots }) => {
       background: strokeColor,
     };
   }
+
+  const trailStyle = trailColor
+    ? {
+        style: { backgroundColor: trailColor },
+      }
+    : undefined;
   const percentStyle = {
     width: `${validProgress(percent)}%`,
     height: `${strokeWidth || (size === 'small' ? 6 : 8)}px`,
@@ -87,7 +94,7 @@ const Line = (_, { attrs, slots }) => {
   return (
     <div>
       <div class={`${prefixCls}-outer`}>
-        <div class={`${prefixCls}-inner`}>
+        <div class={`${prefixCls}-inner`} {...trailStyle}>
           <div class={`${prefixCls}-bg`} style={percentStyle} />
           {successSegment}
         </div>

@@ -36,7 +36,7 @@ export const selectorPropTypes = () => ({
 });
 
 function noop() {}
-export default function() {
+export default function () {
   const BaseSelector = {
     name: 'BaseSelector',
     inheritAttrs: false,
@@ -48,7 +48,7 @@ export default function() {
         // Pass by HOC
         renderSelection: PropTypes.func.isRequired,
         renderPlaceholder: PropTypes.func,
-        tabindex: PropTypes.number,
+        tabindex: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
       },
       {
         tabindex: 0,
@@ -99,7 +99,7 @@ export default function() {
           vcTreeSelect: { onSelectorClear },
         } = this;
 
-        if (!allowClear || !selectorValueList.length || !selectorValueList[0].value) {
+        if (!allowClear || !selectorValueList.length) {
           return null;
         }
         const clearIcon = getComponent(this, 'clearIcon');

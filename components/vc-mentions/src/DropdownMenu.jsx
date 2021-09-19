@@ -1,4 +1,4 @@
-import Menu, { MenuItem } from '../../vc-menu';
+import Menu, { Item as MenuItem } from '../../menu';
 import PropTypes from '../../_util/vue-types';
 import { OptionProps } from './Option';
 import { inject } from 'vue';

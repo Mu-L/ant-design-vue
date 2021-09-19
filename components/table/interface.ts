@@ -1,11 +1,10 @@
-import { ExtractPropTypes, PropType, UnwrapRef } from 'vue';
+import type { ExtractPropTypes, PropType, UnwrapRef } from 'vue';
 import PropTypes, { withUndefined } from '../_util/vue-types';
-import { PaginationProps as getPaginationProps, PaginationConfig } from '../pagination';
-import { SpinProps as getSpinProps } from '../spin';
+import { paginationProps as getPaginationProps, paginationConfig } from '../pagination';
+import { getSpinProps } from '../spin';
 import { tuple } from '../_util/type';
 
 const PaginationProps = getPaginationProps();
-const SpinProps = getSpinProps();
 
 export type CompareFn<T> = (a: T, b: T, sortOrder?: SortOrder) => number;
 export const ColumnFilterItem = PropTypes.shape({
@@ -24,11 +23,15 @@ export const columnProps = {
   align: PropTypes.oneOf(tuple('left', 'right', 'center')),
   ellipsis: PropTypes.looseBool,
   filters: PropTypes.arrayOf(ColumnFilterItem),
-  // onFilter: (value: any, record: T) => PropTypes.looseBool,
+  onFilter: {
+    type: Function as PropType<(value: any, record: any) => boolean>,
+  },
   filterMultiple: PropTypes.looseBool,
   filterDropdown: PropTypes.any,
   filterDropdownVisible: PropTypes.looseBool,
-  // onFilterDropdownVisibleChange?: (visible: boolean) => void;
+  onFilterDropdownVisibleChange: {
+    type: Function as PropType<(visible: boolean) => void>,
+  },
   sorter: PropTypes.oneOfType([PropTypes.looseBool, PropTypes.func]),
   defaultSortOrder: PropTypes.oneOf(tuple('ascend', 'descend')),
   colSpan: PropTypes.number,
@@ -52,7 +55,13 @@ export const columnProps = {
 };
 
 export type ColumnProps = Partial<ExtractPropTypes<typeof columnProps>> & {
-  slots?: Record<string, string>;
+  slots?: {
+    title?: string;
+    filterIcon?: string;
+    filterDropdown?: string;
+    customRender?: string;
+    [key: string]: string | undefined;
+  };
 };
 
 export interface TableComponents {
@@ -104,7 +113,7 @@ export const tableRowSelection = {
 
 export type SortOrder = 'descend' | 'ascend';
 
-const paginationProps = PaginationConfig();
+const paginationProps = paginationConfig();
 
 export const tableProps = {
   prefixCls: PropTypes.string,
@@ -131,7 +140,7 @@ export const tableProps = {
   expandIconAsCell: PropTypes.looseBool,
   expandIconColumnIndex: PropTypes.number,
   expandRowByClick: PropTypes.looseBool,
-  loading: PropTypes.oneOfType([PropTypes.shape(SpinProps).loose, PropTypes.looseBool]),
+  loading: PropTypes.oneOfType([PropTypes.shape(getSpinProps()).loose, PropTypes.looseBool]),
   locale: TableLocale,
   indentSize: PropTypes.number,
   customRow: PropTypes.func,

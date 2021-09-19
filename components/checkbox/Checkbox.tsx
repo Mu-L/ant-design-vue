@@ -5,7 +5,8 @@ import VcCheckbox from '../vc-checkbox';
 import hasProp, { getOptionProps, getSlot } from '../_util/props-util';
 import { defaultConfigProvider } from '../config-provider';
 import warning from '../_util/warning';
-import { RadioChangeEvent } from '../radio/interface';
+import type { RadioChangeEvent } from '../radio/interface';
+import type { EventHandler } from '../_util/EventInterface';
 function noop() {}
 
 export default defineComponent({
@@ -127,8 +128,8 @@ export default defineComponent({
       <label
         class={classString}
         style={style}
-        onMouseenter={onMouseenter as EventHandlerNonNull}
-        onMouseleave={onMouseleave as EventHandlerNonNull}
+        onMouseenter={onMouseenter as EventHandler}
+        onMouseleave={onMouseleave as EventHandler}
       >
         <VcCheckbox {...checkboxProps} class={checkboxClass} ref="vcCheckbox" />
         {children.length ? <span>{children}</span> : null}

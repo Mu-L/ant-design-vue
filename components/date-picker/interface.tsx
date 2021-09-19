@@ -1,6 +1,8 @@
-import moment from 'moment';
-import { CSSProperties } from 'vue';
-import { tuple, VueNode } from '../_util/type';
+import type moment from 'moment';
+import type { CSSProperties } from 'vue';
+import type { EventHandler } from '../_util/EventInterface';
+import type { VueNode } from '../_util/type';
+import { tuple } from '../_util/type';
 
 export type RangePickerValue =
   | undefined[]
@@ -36,8 +38,8 @@ export interface PickerProps {
   disabledDate?: (current: moment.Moment | null) => boolean;
   dateRender?: (current: moment.Moment, today: moment.Moment) => any;
   autofocus?: boolean;
-  onFocus?: EventHandlerNonNull;
-  onBlur?: EventHandlerNonNull;
+  onFocus?: EventHandler;
+  onBlur?: EventHandler;
 }
 
 export interface SinglePickerProps {
@@ -56,9 +58,7 @@ export interface DatePickerPropsTypes extends PickerProps, SinglePickerProps {
   showTime?: Record<string, any> | boolean;
   showToday?: boolean;
   open?: boolean;
-  disabledTime?: (
-    current?: moment.Moment | null,
-  ) => {
+  disabledTime?: (current?: moment.Moment | null) => {
     disabledHours?: () => number[];
     disabledMinutes?: () => number[];
     disabledSeconds?: () => number[];

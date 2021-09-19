@@ -1,13 +1,16 @@
-import { defineComponent, ExtractPropTypes } from 'vue';
+import type { ExtractPropTypes, PropType } from 'vue';
+import { defineComponent } from 'vue';
 import PropTypes from '../_util/vue-types';
 import Button from '../button';
 import BaseMixin from '../_util/BaseMixin';
-import buttonTypes from '../button/buttonTypes';
+import type { LegacyButtonType } from '../button/buttonTypes';
+import { convertLegacyProps } from '../button/buttonTypes';
 import { getSlot, findDOMNode } from '../_util/props-util';
-const ButtonType = buttonTypes().type;
 
 const ActionButtonProps = {
-  type: ButtonType,
+  type: {
+    type: String as PropType<LegacyButtonType>,
+  },
   actionFn: PropTypes.func,
   closeModal: PropTypes.func,
   autofocus: PropTypes.looseBool,
@@ -76,7 +79,7 @@ export default defineComponent({
   render() {
     const { type, loading, buttonProps } = this;
     const props = {
-      type,
+      ...convertLegacyProps(type),
       onClick: this.onClick,
       loading,
       ...buttonProps,

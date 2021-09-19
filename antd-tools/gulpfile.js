@@ -1,9 +1,5 @@
 /* eslint-disable no-console */
-const { getProjectPath, injectRequire } = require('./utils/projectHelper');
-
-injectRequire();
-
-// const install = require('./install')
+const { getProjectPath } = require('./utils/projectHelper');
 const runCmd = require('./runCmd');
 const getBabelCommonConfig = require('./getBabelCommonConfig');
 const merge2 = require('merge2');
@@ -26,16 +22,18 @@ const ts = require('gulp-typescript');
 const gulp = require('gulp');
 const fs = require('fs');
 const rimraf = require('rimraf');
-const tsConfig = require('./getTSCommonConfig')();
-const replaceLib = require('./replaceLib');
 const stripCode = require('gulp-strip-code');
 const compareVersions = require('compare-versions');
+const getTSCommonConfig = require('./getTSCommonConfig');
+const replaceLib = require('./replaceLib');
 
 const packageJson = require(getProjectPath('package.json'));
 const tsDefaultReporter = ts.reporter.defaultReporter();
 const cwd = process.cwd();
 const libDir = getProjectPath('lib');
 const esDir = getProjectPath('es');
+
+const tsConfig = getTSCommonConfig();
 
 function dist(done) {
   rimraf.sync(path.join(cwd, 'dist'));
@@ -80,7 +78,7 @@ function compileTs(stream) {
   return stream
     .pipe(ts(tsConfig))
     .js.pipe(
-      through2.obj(function(file, encoding, next) {
+      through2.obj(function (file, encoding, next) {
         // console.log(file.path, file.base);
         file.path = file.path.replace(/\.[jt]sx$/, '.js');
         this.push(file);
@@ -118,10 +116,16 @@ function babelify(js, modules) {
         );
         file.path = file.path.replace(/index\.(js|jsx|ts|tsx)$/, 'css.js');
         this.push(file);
-        next();
-      } else {
-        next();
+      } else if (modules !== false) {
+        const content = file.contents.toString(encoding);
+        file.contents = Buffer.from(
+          content
+            .replace(/lodash-es/g, 'lodash')
+            .replace(/@ant-design\/icons-vue/g, '@ant-design/icons-vue/lib/icons'),
+        );
+        this.push(file);
       }
+      next();
     }),
   );
   if (modules === false) {
@@ -140,7 +144,7 @@ function compile(modules) {
   const less = gulp
     .src(['components/**/*.less'])
     .pipe(
-      through2.obj(function(file, encoding, next) {
+      through2.obj(function (file, encoding, next) {
         this.push(file.clone());
         if (
           file.path.match(/\/style\/index\.less$/) ||
@@ -288,6 +292,7 @@ gulp.task(
 
 function publish(tagString, done) {
   let args = ['publish', '--with-antd-tools'];
+  args = args.concat(['--tag', 'next']);
   if (tagString) {
     args = args.concat(['--tag', tagString]);
   }
@@ -301,61 +306,54 @@ function publish(tagString, done) {
 }
 
 function pub(done) {
-  dist(code => {
-    if (code) {
-      done(code);
-      return;
-    }
-    const notOk = !packageJson.version.match(/^\d+\.\d+\.\d+$/);
-    let tagString;
-    if (argv['npm-tag']) {
-      tagString = argv['npm-tag'];
-    }
-    if (!tagString && notOk) {
-      tagString = 'next';
-    }
-    if (packageJson.scripts['pre-publish']) {
-      runCmd('npm', ['run', 'pre-publish'], code2 => {
-        if (code2) {
-          done(code2);
-          return;
-        }
-        publish(tagString, done);
-      });
-    } else {
+  const notOk = !packageJson.version.match(/^\d+\.\d+\.\d+$/);
+  let tagString;
+  if (argv['npm-tag']) {
+    tagString = argv['npm-tag'];
+  }
+  if (!tagString && notOk) {
+    tagString = 'next';
+  }
+  if (packageJson.scripts['pre-publish']) {
+    runCmd('npm', ['run', 'pre-publish'], code2 => {
+      if (code2) {
+        done(code2);
+        return;
+      }
       publish(tagString, done);
-    }
-  });
+    });
+  } else {
+    publish(tagString, done);
+  }
 }
 
-gulp.task(
-  'compile-with-es',
-  gulp.series(done => {
-    compile(false).on('finish', function() {
-      done();
-    });
-  }),
-);
+gulp.task('compile-with-es', done => {
+  console.log('[Parallel] Compile to es...');
+  compile(false).on('finish', done);
+});
+
+gulp.task('compile-with-lib', done => {
+  console.log('[Parallel] Compile to js...');
+  compile().on('finish', done);
+});
 
 gulp.task(
   'compile',
-  gulp.series('compile-with-es', done => {
-    compile().on('finish', function() {
-      done();
-    });
+  gulp.series(gulp.parallel('compile-with-es', 'compile-with-lib'), done => {
+    done();
   }),
 );
 
 gulp.task(
   'dist',
-  gulp.series('compile', done => {
+  gulp.series(done => {
     dist(done);
   }),
 );
 
 gulp.task(
   'pub',
-  gulp.series('check-git', 'compile', done => {
+  gulp.series('check-git', 'compile', 'dist', done => {
     // if (!process.env.GITHUB_TOKEN) {
     //   console.log('no GitHub token found, skip');
     // } else {

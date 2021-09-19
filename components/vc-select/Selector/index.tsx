@@ -11,36 +11,15 @@
 import KeyCode from '../../_util/KeyCode';
 import MultipleSelector from './MultipleSelector';
 import SingleSelector from './SingleSelector';
-import { LabelValueType, RawValueType, CustomTagProps } from '../interface/generator';
-import { RenderNode, Mode } from '../interface';
+import type { LabelValueType, RawValueType, CustomTagProps } from '../interface/generator';
+import type { RenderNode, Mode } from '../interface';
 import useLock from '../hooks/useLock';
-import { defineComponent, VNodeChild } from 'vue';
-import createRef, { RefObject } from '../../_util/createRef';
+import type { VNodeChild, PropType } from 'vue';
+import { defineComponent } from 'vue';
+import createRef from '../../_util/createRef';
 import PropTypes from '../../_util/vue-types';
-import { VueNode } from 'ant-design-vue/es/_util/type';
-
-export interface InnerSelectorProps {
-  prefixCls: string;
-  id: string;
-  mode: Mode;
-  inputRef: RefObject;
-  placeholder?: VNodeChild;
-  disabled?: boolean;
-  autofocus?: boolean;
-  autocomplete?: string;
-  values: LabelValueType[];
-  showSearch?: boolean;
-  searchValue: string;
-  accessibilityIndex: number;
-  open: boolean;
-  tabindex?: number;
-  onInputKeyDown: EventHandlerNonNull;
-  onInputMouseDown: EventHandlerNonNull;
-  onInputChange: EventHandlerNonNull;
-  onInputPaste: EventHandlerNonNull;
-  onInputCompositionStart: EventHandlerNonNull;
-  onInputCompositionEnd: EventHandlerNonNull;
-}
+import type { VueNode } from '../../_util/type';
+import type { EventHandler } from '../../_util/EventInterface';
 
 export interface SelectorProps {
   id: string;
@@ -57,15 +36,15 @@ export interface SelectorProps {
 
   autofocus?: boolean;
   accessibilityIndex: number;
-  tabindex?: number;
+  tabindex?: number | string;
   disabled?: boolean;
   placeholder?: VNodeChild;
   removeIcon?: RenderNode;
 
   // Tags
-  maxTagCount?: number;
+  maxTagCount?: number | 'responsive';
   maxTagTextLength?: number;
-  maxTagPlaceholder?: VNodeChild;
+  maxTagPlaceholder?: VNodeChild | ((omittedValues: LabelValueType[]) => VNodeChild);
   tagRender?: (props: CustomTagProps) => VNodeChild;
 
   /** Check if `tokenSeparators` contains `\n` or `\r\n` */
@@ -79,7 +58,7 @@ export interface SelectorProps {
   onSearch: (searchText: string, fromTyping: boolean, isCompositing: boolean) => boolean;
   onSearchSubmit: (searchText: string) => void;
   onSelect: (value: RawValueType, option: { selected: boolean }) => void;
-  onInputKeyDown?: EventHandlerNonNull;
+  onInputKeyDown?: EventHandler;
 
   /**
    * @private get real dom for trigger align.
@@ -90,6 +69,52 @@ export interface SelectorProps {
 
 const Selector = defineComponent<SelectorProps>({
   name: 'Selector',
+  inheritAttrs: false,
+  props: {
+    id: PropTypes.string,
+    prefixCls: PropTypes.string,
+    showSearch: PropTypes.looseBool,
+    open: PropTypes.looseBool,
+    /** Display in the Selector value, it's not same as `value` prop */
+    values: PropTypes.array,
+    multiple: PropTypes.looseBool,
+    mode: PropTypes.string,
+    searchValue: PropTypes.string,
+    activeValue: PropTypes.string,
+    inputElement: PropTypes.any,
+
+    autofocus: PropTypes.looseBool,
+    accessibilityIndex: PropTypes.number,
+    tabindex: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    disabled: PropTypes.looseBool,
+    placeholder: PropTypes.any,
+    removeIcon: PropTypes.any,
+
+    // Tags
+    maxTagCount: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    maxTagTextLength: PropTypes.number,
+    maxTagPlaceholder: PropTypes.any,
+    tagRender: PropTypes.func,
+
+    /** Check if `tokenSeparators` contains `\n` or `\r\n` */
+    tokenWithEnter: PropTypes.looseBool,
+
+    // Motion
+    choiceTransitionName: PropTypes.string,
+
+    onToggleOpen: { type: Function as PropType<(open?: boolean) => void> },
+    /** `onSearch` returns go next step boolean to check if need do toggle open */
+    onSearch: PropTypes.func,
+    onSearchSubmit: PropTypes.func,
+    onSelect: PropTypes.func,
+    onInputKeyDown: { type: Function as PropType<EventHandler> },
+
+    /**
+     * @private get real dom for trigger align.
+     * This may be removed after React provides replacement of `findDOMNode`
+     */
+    domRef: PropTypes.func,
+  } as any,
   setup(props) {
     const inputRef = createRef();
     let compositionStatus = false;
@@ -140,8 +165,12 @@ const Selector = defineComponent<SelectorProps>({
       compositionStatus = true;
     };
 
-    const onInputCompositionEnd = () => {
+    const onInputCompositionEnd = (e: InputEvent) => {
       compositionStatus = false;
+      // Trigger search again to support `tokenSeparators` with typewriting
+      if (props.mode !== 'combobox') {
+        triggerOnSearch((e.target as HTMLInputElement).value);
+      }
     };
 
     const onInputChange = (event: { target: { value: any } }) => {
@@ -152,7 +181,10 @@ const Selector = defineComponent<SelectorProps>({
       // Pasted text should replace back to origin content
       if (props.tokenWithEnter && pastedText && /[\r\n]/.test(pastedText)) {
         // CRLF will be treated as a single space for input element
-        const replacedText = pastedText.replace(/\r\n/g, ' ').replace(/[\r\n]/g, ' ');
+        const replacedText = pastedText
+          .replace(/[\r\n]+$/, '')
+          .replace(/\r\n/g, ' ')
+          .replace(/[\r\n]/g, ' ');
         value = value.replace(replacedText, pastedText);
       }
 
@@ -248,52 +280,5 @@ const Selector = defineComponent<SelectorProps>({
     );
   },
 });
-
-Selector.inheritAttrs = false;
-Selector.props = {
-  id: PropTypes.string,
-  prefixCls: PropTypes.string,
-  showSearch: PropTypes.looseBool,
-  open: PropTypes.looseBool,
-  /** Display in the Selector value, it's not same as `value` prop */
-  values: PropTypes.array,
-  multiple: PropTypes.looseBool,
-  mode: PropTypes.string,
-  searchValue: PropTypes.string,
-  activeValue: PropTypes.string,
-  inputElement: PropTypes.any,
-
-  autofocus: PropTypes.looseBool,
-  accessibilityIndex: PropTypes.number,
-  tabindex: PropTypes.number,
-  disabled: PropTypes.looseBool,
-  placeholder: PropTypes.any,
-  removeIcon: PropTypes.any,
-
-  // Tags
-  maxTagCount: PropTypes.number,
-  maxTagTextLength: PropTypes.number,
-  maxTagPlaceholder: PropTypes.any,
-  tagRender: PropTypes.func,
-
-  /** Check if `tokenSeparators` contains `\n` or `\r\n` */
-  tokenWithEnter: PropTypes.looseBool,
-
-  // Motion
-  choiceTransitionName: PropTypes.string,
-
-  onToggleOpen: PropTypes.func,
-  /** `onSearch` returns go next step boolean to check if need do toggle open */
-  onSearch: PropTypes.func,
-  onSearchSubmit: PropTypes.func,
-  onSelect: PropTypes.func,
-  onInputKeyDown: PropTypes.func,
-
-  /**
-   * @private get real dom for trigger align.
-   * This may be removed after React provides replacement of `findDOMNode`
-   */
-  domRef: PropTypes.func,
-};
 
 export default Selector;

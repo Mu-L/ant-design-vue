@@ -1,4 +1,5 @@
 import omit from 'omit.js';
+import type { ExtractPropTypes } from 'vue';
 import { defineComponent, inject, provide } from 'vue';
 import VcTimePicker from '../vc-time-picker';
 import LocaleReceiver from '../locale-provider/LocaleReceiver';
@@ -19,6 +20,7 @@ import {
   TimeOrTimesType,
 } from '../_util/moment-util';
 import { tuple, withInstall } from '../_util/type';
+import classNames from '../_util/classNames';
 
 export function generateShowHourMinuteSecond(format: string) {
   // Ref: http://momentjs.com/docs/#/parsing/string-format/
@@ -29,7 +31,7 @@ export function generateShowHourMinuteSecond(format: string) {
   };
 }
 
-export const TimePickerProps = () => ({
+export const timePickerProps = () => ({
   size: PropTypes.oneOf(tuple('large', 'default', 'small')),
   value: TimeOrTimesType,
   defaultValue: TimeOrTimesType,
@@ -74,11 +76,13 @@ export const TimePickerProps = () => ({
   onOpenChange: PropTypes.func,
 });
 
+export type TimePickerProps = Partial<ExtractPropTypes<ReturnType<typeof timePickerProps>>>;
+
 const TimePicker = defineComponent({
   name: 'ATimePicker',
   mixins: [BaseMixin],
   inheritAttrs: false,
-  props: initDefaultProps(TimePickerProps(), {
+  props: initDefaultProps(timePickerProps(), {
     align: {
       offset: [0, -2],
     },
@@ -210,6 +214,8 @@ const TimePicker = defineComponent({
       const { prefixCls: customizePrefixCls, getPopupContainer, placeholder, size } = props;
       const getPrefixCls = this.configProvider.getPrefixCls;
       const prefixCls = getPrefixCls('time-picker', customizePrefixCls);
+      const inputPrefixCls = getPrefixCls('input');
+      const pickerInputClass = classNames(`${prefixCls}-input`, inputPrefixCls);
 
       const format = this.getDefaultFormat();
       const pickerClassName = {
@@ -233,6 +239,7 @@ const TimePicker = defineComponent({
         ...this.$attrs,
         allowEmpty: this.getAllowClear(),
         prefixCls,
+        pickerInputClass,
         getPopupContainer: getPopupContainer || getContextPopupContainer,
         format,
         value: this.sValue,

@@ -1,16 +1,11 @@
 import { cloneElement } from '../../_util/vnode';
-import {
-  defineComponent,
-  getCurrentInstance,
-  inject,
-  onMounted,
-  VNode,
-  VNodeChild,
-  withDirectives,
-} from 'vue';
+import type { VNode, VNodeChild } from 'vue';
+import { defineComponent, getCurrentInstance, inject, onMounted, withDirectives } from 'vue';
 import PropTypes from '../../_util/vue-types';
-import { RefObject } from '../../_util/createRef';
+import type { RefObject } from '../../_util/createRef';
 import antInput from '../../_util/antInputDirective';
+import classNames from '../../_util/classNames';
+import type { EventHandler } from '../../_util/EventInterface';
 
 interface InputProps {
   prefixCls: string;
@@ -23,21 +18,47 @@ interface InputProps {
   accessibilityIndex: number;
   value: string;
   open: boolean;
-  tabindex: number;
+  tabindex: number | string;
   /** Pass accessibility props to input */
   attrs: object;
   inputRef: RefObject;
-  onKeydown: EventHandlerNonNull;
-  onMousedown: EventHandlerNonNull;
-  onChange: EventHandlerNonNull;
-  onPaste: EventHandlerNonNull;
-  onCompositionstart: EventHandlerNonNull;
-  onCompositionend: EventHandlerNonNull;
+  onKeydown: EventHandler;
+  onMousedown: EventHandler;
+  onChange: EventHandler;
+  onPaste: EventHandler;
+  onCompositionstart: EventHandler;
+  onCompositionend: EventHandler;
+  onFocus: EventHandler;
+  onBlur: EventHandler;
 }
 
-const Input = defineComponent<InputProps, { VCSelectContainerEvent: any; blurTimeout: any }>({
+const Input = defineComponent({
   name: 'Input',
   inheritAttrs: false,
+  props: {
+    inputRef: PropTypes.any,
+    prefixCls: PropTypes.string,
+    id: PropTypes.string,
+    inputElement: PropTypes.any,
+    disabled: PropTypes.looseBool,
+    autofocus: PropTypes.looseBool,
+    autocomplete: PropTypes.string,
+    editable: PropTypes.looseBool,
+    accessibilityIndex: PropTypes.number,
+    value: PropTypes.string,
+    open: PropTypes.looseBool,
+    tabindex: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    /** Pass accessibility props to input */
+    attrs: PropTypes.object,
+    onKeydown: PropTypes.func,
+    onMousedown: PropTypes.func,
+    onChange: PropTypes.func,
+    onPaste: PropTypes.func,
+    onCompositionstart: PropTypes.func,
+    onCompositionend: PropTypes.func,
+    onFocus: PropTypes.func,
+    onBlur: PropTypes.func,
+  },
   setup(props) {
     if (process.env.NODE_ENV === 'test') {
       onMounted(() => {
@@ -51,7 +72,7 @@ const Input = defineComponent<InputProps, { VCSelectContainerEvent: any; blurTim
     }
     return {
       blurTimeout: null,
-      VCSelectContainerEvent: inject('VCSelectContainerEvent'),
+      VCSelectContainerEvent: inject('VCSelectContainerEvent') as any,
     };
   },
   render() {
@@ -72,16 +93,20 @@ const Input = defineComponent<InputProps, { VCSelectContainerEvent: any; blurTim
       onPaste,
       onCompositionstart,
       onCompositionend,
+      onFocus,
+      onBlur,
       open,
       inputRef,
       attrs,
     } = this.$props as InputProps;
-    let inputNode: any = withDirectives((inputElement || <input />) as VNode, [[antInput]]);
+    let inputNode: any = inputElement || withDirectives((<input />) as VNode, [[antInput]]);
 
     const inputProps = inputNode.props || {};
     const {
       onKeydown: onOriginKeyDown,
       onInput: onOriginInput,
+      onFocus: onOriginFocus,
+      onBlur: onOriginBlur,
       onMousedown: onOriginMouseDown,
       onCompositionstart: onOriginCompositionStart,
       onCompositionend: onOriginCompositionEnd,
@@ -97,7 +122,7 @@ const Input = defineComponent<InputProps, { VCSelectContainerEvent: any; blurTim
           tabindex,
           autocomplete: autocomplete || 'off',
           autofocus,
-          class: `${prefixCls}-selection-search-input`,
+          class: classNames(`${prefixCls}-selection-search-input`, inputNode?.props?.className),
           style: { ...style, opacity: editable ? null : 0 },
           role: 'combobox',
           'aria-expanded': open,
@@ -143,10 +168,14 @@ const Input = defineComponent<InputProps, { VCSelectContainerEvent: any; blurTim
           onPaste,
           onFocus: (...args: any[]) => {
             clearTimeout(this.blurTimeout);
+            onOriginFocus && onOriginFocus(args[0]);
+            onFocus && onFocus(args[0]);
             this.VCSelectContainerEvent?.focus(args[0]);
           },
           onBlur: (...args: any[]) => {
             this.blurTimeout = setTimeout(() => {
+              onOriginBlur && onOriginBlur(args[0]);
+              onBlur && onBlur(args[0]);
               this.VCSelectContainerEvent?.blur(args[0]);
             }, 200);
           },
@@ -160,27 +189,29 @@ const Input = defineComponent<InputProps, { VCSelectContainerEvent: any; blurTim
   },
 });
 
-Input.props = {
-  inputRef: PropTypes.any,
-  prefixCls: PropTypes.string,
-  id: PropTypes.string,
-  inputElement: PropTypes.any,
-  disabled: PropTypes.looseBool,
-  autofocus: PropTypes.looseBool,
-  autocomplete: PropTypes.string,
-  editable: PropTypes.looseBool,
-  accessibilityIndex: PropTypes.number,
-  value: PropTypes.string,
-  open: PropTypes.looseBool,
-  tabindex: PropTypes.number,
-  /** Pass accessibility props to input */
-  attrs: PropTypes.object,
-  onKeydown: PropTypes.func,
-  onMousedown: PropTypes.func,
-  onChange: PropTypes.func,
-  onPaste: PropTypes.func,
-  onCompositionstart: PropTypes.func,
-  onCompositionend: PropTypes.func,
-};
+// Input.props = {
+//   inputRef: PropTypes.any,
+//   prefixCls: PropTypes.string,
+//   id: PropTypes.string,
+//   inputElement: PropTypes.any,
+//   disabled: PropTypes.looseBool,
+//   autofocus: PropTypes.looseBool,
+//   autocomplete: PropTypes.string,
+//   editable: PropTypes.looseBool,
+//   accessibilityIndex: PropTypes.number,
+//   value: PropTypes.string,
+//   open: PropTypes.looseBool,
+//   tabindex: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+//   /** Pass accessibility props to input */
+//   attrs: PropTypes.object,
+//   onKeydown: PropTypes.func,
+//   onMousedown: PropTypes.func,
+//   onChange: PropTypes.func,
+//   onPaste: PropTypes.func,
+//   onCompositionstart: PropTypes.func,
+//   onCompositionend: PropTypes.func,
+//   onFocus: PropTypes.func,
+//   onBlur: PropTypes.func,
+// };
 
 export default Input;

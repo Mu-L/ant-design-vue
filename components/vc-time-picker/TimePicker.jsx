@@ -35,6 +35,7 @@ export default defineComponent({
           return moment();
         },
       },
+      pickerInputClass: String,
       inputReadOnly: PropTypes.looseBool,
       disabled: PropTypes.looseBool,
       allowEmpty: PropTypes.looseBool,
@@ -341,12 +342,12 @@ export default defineComponent({
       name,
       autocomplete,
       autofocus,
-      inputReadOnly,
       sOpen,
       sValue,
       onFocus,
       onBlur,
       popupStyle,
+      pickerInputClass,
     } = this;
     const { class: className, style } = this.$attrs;
     const popupClassName = this.getPopupClassName();
@@ -369,7 +370,7 @@ export default defineComponent({
       >
         <span class={classNames(prefixCls, className)} style={style}>
           <input
-            class={`${prefixCls}-input`}
+            class={pickerInputClass}
             ref={this.saveInputRef}
             type="text"
             placeholder={placeholder}
@@ -381,7 +382,7 @@ export default defineComponent({
             onFocus={onFocus}
             onBlur={onBlur}
             autofocus={autofocus}
-            readonly={!!inputReadOnly}
+            readonly
             id={id}
           />
           {inputIcon || <span class={`${prefixCls}-icon`} />}

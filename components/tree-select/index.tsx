@@ -1,4 +1,5 @@
-import { App, defineComponent, inject, Plugin } from 'vue';
+import type { App, Plugin } from 'vue';
+import { defineComponent, inject } from 'vue';
 import VcTreeSelect, { TreeNode, SHOW_ALL, SHOW_PARENT, SHOW_CHILD } from '../vc-tree-select';
 import classNames from '../_util/classNames';
 import { TreeSelectProps } from './interface';
@@ -26,7 +27,6 @@ const TreeSelect = defineComponent({
   props: initDefaultProps(TreeSelectProps(), {
     transitionName: 'slide-up',
     choiceTransitionName: '',
-    showSearch: false,
   }),
   setup() {
     return {
@@ -93,10 +93,10 @@ const TreeSelect = defineComponent({
         let newLabel = typeof label === 'function' ? label() : label;
         let newTitle = typeof title === 'function' ? title() : title;
         if (!newLabel && slots.label && $slots[slots.label]) {
-          newLabel = <>{$slots.label(item)}</>;
+          newLabel = <>{$slots[slots.label](item)}</>;
         }
         if (!newTitle && slots.title && $slots[slots.title]) {
-          newTitle = <>{$slots.title(item)}</>;
+          newTitle = <>{$slots[slots.title](item)}</>;
         }
         const treeNodeProps = {
           ...item,
@@ -198,11 +198,13 @@ const TreeSelect = defineComponent({
 });
 
 /* istanbul ignore next */
-TreeSelect.install = function(app: App) {
+TreeSelect.install = function (app: App) {
   app.component(TreeSelect.name, TreeSelect);
   app.component(TreeSelect.TreeNode.displayName, TreeSelect.TreeNode);
   return app;
 };
+
+export const TreeSelectNode = TreeSelect.TreeNode;
 
 export default TreeSelect as typeof TreeSelect &
   Plugin & {

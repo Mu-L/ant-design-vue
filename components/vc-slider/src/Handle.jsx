@@ -17,7 +17,7 @@ export default defineComponent({
     min: PropTypes.number,
     max: PropTypes.number,
     value: PropTypes.number,
-    tabindex: PropTypes.number,
+    tabindex: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     reverse: PropTypes.looseBool,
     // handleFocus: PropTypes.func.def(noop),
     // handleBlur: PropTypes.func.def(noop),
@@ -73,17 +73,8 @@ export default defineComponent({
     },
   },
   render() {
-    const {
-      prefixCls,
-      vertical,
-      reverse,
-      offset,
-      disabled,
-      min,
-      max,
-      value,
-      tabindex,
-    } = getOptionProps(this);
+    const { prefixCls, vertical, reverse, offset, disabled, min, max, value, tabindex } =
+      getOptionProps(this);
     const className = classNames(this.$attrs.class, {
       [`${prefixCls}-handle-click-focused`]: this.clickFocused,
     });

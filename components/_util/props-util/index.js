@@ -28,7 +28,7 @@ const parseStyleText = (cssText = '', camel) => {
   const res = {};
   const listDelimiter = /;(?![^(]*\))/g;
   const propertyDelimiter = /:(.+)/;
-  cssText.split(listDelimiter).forEach(function(item) {
+  cssText.split(listDelimiter).forEach(function (item) {
     if (item) {
       const tmp = item.split(propertyDelimiter);
       if (tmp.length > 1) {
@@ -116,7 +116,7 @@ const getSlotOptions = () => {
   throw Error('使用 .type 直接取值');
 };
 const findDOMNode = instance => {
-  let node = instance && (instance.$el || instance);
+  let node = instance?.vnode?.el || (instance && (instance.$el || instance));
   while (node && !node.tagName) {
     node = node.nextSibling;
   }
@@ -333,12 +333,21 @@ export function isFragment(c) {
   return c.length === 1 && c[0].type === Fragment;
 }
 
+export function isEmptyContent(c) {
+  return c === undefined || c === null || c === '' || (Array.isArray(c) && c.length === 0);
+}
+
 export function isEmptyElement(c) {
   return (
-    c.type === Comment ||
-    (c.type === Fragment && c.children.length === 0) ||
-    (c.type === Text && c.children.trim() === '')
+    c &&
+    (c.type === Comment ||
+      (c.type === Fragment && c.children.length === 0) ||
+      (c.type === Text && c.children.trim() === ''))
   );
+}
+
+export function isEmptySlot(c) {
+  return !c || c().every(isEmptyElement);
 }
 
 export function isStringElement(c) {
@@ -390,7 +399,7 @@ function isValidElement(element) {
 }
 
 function getPropsSlot(slots, props, prop = 'default') {
-  return slots[prop]?.() ?? props[prop];
+  return props[prop] ?? slots[prop]?.();
 }
 
 export {
