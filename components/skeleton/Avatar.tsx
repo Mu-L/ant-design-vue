@@ -1,50 +1,40 @@
-import { defineComponent, ExtractPropTypes } from 'vue';
+import type { ExtractPropTypes, PropType } from 'vue';
+import { computed, defineComponent } from 'vue';
 import classNames from '../_util/classNames';
-import PropTypes from '../_util/vue-types';
-import { tuple } from '../_util/type';
 import initDefaultProps from '../_util/props-util/initDefaultProps';
+import useConfigInject from '../_util/hooks/useConfigInject';
+import Element, { skeletonElementProps } from './Element';
 
-const skeletonAvatarProps = {
-  prefixCls: PropTypes.string,
-  size: PropTypes.oneOfType([
-    PropTypes.oneOf(tuple('large', 'small', 'default')),
-    PropTypes.number,
-  ]),
-  shape: PropTypes.oneOf(tuple('circle', 'square')),
+export const avatarProps = () => {
+  return {
+    ...skeletonElementProps(),
+    shape: String as PropType<'circle' | 'square'>,
+  };
 };
 
-export const SkeletonAvatarProps = PropTypes.shape(skeletonAvatarProps).loose;
+export type SkeletonAvatarProps = Partial<ExtractPropTypes<ReturnType<typeof avatarProps>>>;
 
-export type ISkeletonAvatarProps = Partial<ExtractPropTypes<typeof skeletonAvatarProps>>;
-
-const Avatar = defineComponent({
-  props: initDefaultProps(skeletonAvatarProps, {
-    size: 'large',
+const SkeletonAvatar = defineComponent({
+  name: 'ASkeletonAvatar',
+  props: initDefaultProps(avatarProps(), {
+    size: 'default',
+    shape: 'circle',
   }),
-  render() {
-    const { prefixCls, size, shape } = this.$props;
-
-    const sizeCls = classNames({
-      [`${prefixCls}-lg`]: size === 'large',
-      [`${prefixCls}-sm`]: size === 'small',
-    });
-
-    const shapeCls = classNames({
-      [`${prefixCls}-circle`]: shape === 'circle',
-      [`${prefixCls}-square`]: shape === 'square',
-    });
-
-    const sizeStyle =
-      typeof size === 'number'
-        ? {
-            width: `${size}px`,
-            height: `${size}px`,
-            lineHeight: `${size}px`,
-          }
-        : {};
-
-    return <span class={classNames(prefixCls, sizeCls, shapeCls)} style={sizeStyle} />;
+  setup(props) {
+    const { prefixCls } = useConfigInject('skeleton', props);
+    const cls = computed(() =>
+      classNames(prefixCls.value, `${prefixCls.value}-element`, {
+        [`${prefixCls.value}-active`]: props.active,
+      }),
+    );
+    return () => {
+      return (
+        <div class={cls.value}>
+          <Element {...props} prefixCls={`${prefixCls.value}-avatar`} />
+        </div>
+      );
+    };
   },
 });
 
-export default Avatar;
+export default SkeletonAvatar;

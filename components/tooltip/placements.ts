@@ -1,4 +1,4 @@
-import { placements as rcPlacements } from '../vc-tooltip/placements';
+import { placements } from '../vc-tooltip/src/placements';
 
 const autoAdjustOverflowEnabled = {
   adjustX: 1,
@@ -12,15 +12,20 @@ const autoAdjustOverflowDisabled = {
 
 const targetOffset = [0, 0];
 
-interface PlacementsConfig {
-  arrowPointAtCenter: boolean;
-  arrowWidth?: number;
-  verticalArrowShift?: number;
-  horizontalArrowShift?: number;
-  autoAdjustOverflow?: boolean | Object;
+export interface AdjustOverflow {
+  adjustX?: 0 | 1;
+  adjustY?: 0 | 1;
 }
 
-export function getOverflowOptions(autoAdjustOverflow: boolean | Object) {
+export interface PlacementsConfig {
+  arrowWidth?: number;
+  horizontalArrowShift?: number;
+  verticalArrowShift?: number;
+  arrowPointAtCenter?: boolean;
+  autoAdjustOverflow?: boolean | AdjustOverflow;
+}
+
+export function getOverflowOptions(autoAdjustOverflow?: boolean | AdjustOverflow) {
   if (typeof autoAdjustOverflow === 'boolean') {
     return autoAdjustOverflow ? autoAdjustOverflowEnabled : autoAdjustOverflowDisabled;
   }
@@ -32,10 +37,11 @@ export function getOverflowOptions(autoAdjustOverflow: boolean | Object) {
 
 export default function getPlacements(config: PlacementsConfig) {
   const {
-    arrowWidth = 5,
+    arrowWidth = 4,
     horizontalArrowShift = 16,
-    verticalArrowShift = 12,
-    autoAdjustOverflow = true,
+    verticalArrowShift = 8,
+    autoAdjustOverflow,
+    arrowPointAtCenter,
   } = config;
   const placementMap = {
     left: {
@@ -88,16 +94,17 @@ export default function getPlacements(config: PlacementsConfig) {
     },
   };
   Object.keys(placementMap).forEach(key => {
-    placementMap[key] = config.arrowPointAtCenter
+    placementMap[key] = arrowPointAtCenter
       ? {
           ...placementMap[key],
           overflow: getOverflowOptions(autoAdjustOverflow),
           targetOffset,
         }
       : {
-          ...rcPlacements[key],
+          ...placements[key],
           overflow: getOverflowOptions(autoAdjustOverflow),
         };
+
     placementMap[key].ignoreShake = true;
   });
   return placementMap;

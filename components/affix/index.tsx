@@ -1,7 +1,6 @@
+import type { ComponentPublicInstance, CSSProperties, ExtractPropTypes, PropType } from 'vue';
 import {
-  CSSProperties,
   defineComponent,
-  inject,
   ref,
   reactive,
   watch,
@@ -11,12 +10,9 @@ import {
   onUnmounted,
   onUpdated,
 } from 'vue';
-import PropTypes from '../_util/vue-types';
 import classNames from '../_util/classNames';
-import omit from 'omit.js';
 import ResizeObserver from '../vc-resize-observer';
 import throttleByAnimationFrame from '../_util/throttleByAnimationFrame';
-import { defaultConfigProvider } from '../config-provider';
 import { withInstall } from '../_util/type';
 import {
   addObserveTarget,
@@ -25,6 +21,8 @@ import {
   getFixedTop,
   getFixedBottom,
 } from './utils';
+import useConfigInject from '../_util/hooks/useConfigInject';
+import omit from '../_util/omit';
 
 function getDefaultTarget() {
   return typeof window !== 'undefined' ? window : null;
@@ -42,28 +40,41 @@ export interface AffixState {
 }
 
 // Affix
-const AffixProps = {
+export const affixProps = () => ({
   /**
    * 距离窗口顶部达到指定偏移量后触发
    */
-  offsetTop: PropTypes.number,
-  offset: PropTypes.number,
+  offsetTop: Number,
   /** 距离窗口底部达到指定偏移量后触发 */
-  offsetBottom: PropTypes.number,
-  /** 固定状态改变时触发的回调函数 */
-  // onChange?: (affixed?: boolean) => void;
+  offsetBottom: Number,
   /** 设置 Affix 需要监听其滚动事件的元素，值为一个返回对应 DOM 元素的函数 */
-  target: PropTypes.func.def(getDefaultTarget),
-  prefixCls: PropTypes.string,
-  onChange: PropTypes.func,
-  onTestUpdatePosition: PropTypes.func,
+  target: {
+    type: Function as PropType<() => Window | HTMLElement | null>,
+    default: getDefaultTarget,
+  },
+  prefixCls: String,
+  /** 固定状态改变时触发的回调函数 */
+  onChange: Function as PropType<AffixEmits['change']>,
+  onTestUpdatePosition: Function as PropType<AffixEmits['testUpdatePosition']>,
+});
+
+export type AffixProps = Partial<ExtractPropTypes<ReturnType<typeof affixProps>>>;
+
+export type AffixEmits = {
+  change: (lastAffix: boolean) => void;
+  testUpdatePosition: () => void;
 };
+
+export type AffixExpose = {
+  updatePosition: (...args: any[]) => void;
+  lazyUpdatePosition: (...args: any[]) => void;
+};
+
+export type AffixInstance = ComponentPublicInstance<AffixProps, AffixExpose>;
 const Affix = defineComponent({
   name: 'AAffix',
-  props: AffixProps,
-  emits: ['change', 'testUpdatePosition'],
+  props: affixProps(),
   setup(props, { slots, emit, expose }) {
-    const configProvider = inject('configProvider', defaultConfigProvider);
     const placeholderNode = ref();
     const fixedNode = ref();
     const state = reactive({
@@ -179,10 +190,7 @@ const Affix = defineComponent({
     watch(
       () => props.target,
       val => {
-        let newTarget = null;
-        if (val) {
-          newTarget = val() || null;
-        }
+        const newTarget = val?.() || null;
         if (state.prevTarget !== newTarget) {
           removeObserveTarget(currentInstance);
           if (newTarget) {
@@ -218,14 +226,21 @@ const Affix = defineComponent({
       (lazyUpdatePosition as any).cancel();
     });
 
+    const { prefixCls } = useConfigInject('affix', props);
+
     return () => {
-      const { prefixCls } = props;
       const { affixStyle, placeholderStyle } = state;
-      const { getPrefixCls } = configProvider;
       const className = classNames({
-        [getPrefixCls('affix', prefixCls)]: affixStyle,
+        [prefixCls.value]: affixStyle,
       });
-      const restProps = omit(props, ['prefixCls', 'offsetTop', 'offsetBottom', 'target']);
+      const restProps = omit(props, [
+        'prefixCls',
+        'offsetTop',
+        'offsetBottom',
+        'target',
+        'onChange',
+        'onTestUpdatePosition',
+      ]);
       return (
         <ResizeObserver onResize={updatePosition}>
           <div {...restProps} style={placeholderStyle} ref={placeholderNode}>

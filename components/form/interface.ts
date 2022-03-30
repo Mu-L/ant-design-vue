@@ -1,4 +1,6 @@
-import { VueNode } from '../_util/type';
+import type { VueNode } from '../_util/type';
+
+export type FormLabelAlign = 'left' | 'right';
 
 export type InternalNamePath = (string | number)[];
 export type NamePath = string | number | InternalNamePath;
@@ -48,11 +50,13 @@ type Validator = (
 ) => Promise<void> | void;
 
 export interface ValidatorRule {
+  warningOnly?: boolean;
   message?: string | VueNode;
   validator: Validator;
 }
 
 interface BaseRule {
+  warningOnly?: boolean;
   enum?: StoreValue[];
   len?: number;
   max?: number;
@@ -86,8 +90,13 @@ export interface ValidateErrorEntity<Values = any> {
 }
 
 export interface FieldError {
-  name: InternalNamePath;
+  name: InternalNamePath | string;
   errors: string[];
+}
+
+export interface RuleError {
+  errors: string[];
+  rule: RuleObject;
 }
 
 export interface ValidateOptions {
@@ -146,6 +155,11 @@ export interface Callbacks<Values = any> {
   onFieldsChange?: (changedFields: FieldData[], allFields: FieldData[]) => void;
   onFinish?: (values: Values) => void;
   onFinishFailed?: (errorInfo: ValidateErrorEntity<Values>) => void;
+  onValidate?: (
+    name: string | number | string[] | number[],
+    status: boolean,
+    errors: string[] | null,
+  ) => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -37,6 +37,7 @@
     overflow: inherit;
     overflow-x: hidden;
     overflow-y: auto;
+    /* stylelint-disable declaration-block-no-redundant-longhand-properties */
     font-weight: inherit;
     font-size: inherit;
     font-family: inherit;
@@ -45,6 +46,7 @@
     font-size-adjust: inherit;
     font-stretch: inherit;
     line-height: inherit;
+    /* stylelint-enable declaration-block-no-redundant-longhand-properties */
     direction: inherit;
     letter-spacing: inherit;
     white-space: inherit;
@@ -64,10 +66,6 @@
       background-color: transparent;
     }
     .placeholder();
-
-    &:read-only {
-      cursor: default;
-    }
   }
 
   &-measure {
@@ -123,7 +121,7 @@
         overflow: hidden;
         color: @text-color;
         font-weight: normal;
-        line-height: 22px;
+        line-height: @line-height-base;
         white-space: nowrap;
         text-overflow: ellipsis;
         cursor: pointer;
@@ -159,9 +157,11 @@
         }
 
         &-active {
-          background-color: @item-active-bg;
+          background-color: @item-hover-bg;
         }
       }
     }
   }
 }
+
+@import './rtl';

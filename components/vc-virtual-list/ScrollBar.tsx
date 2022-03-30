@@ -1,9 +1,9 @@
-import { defineComponent, PropType, reactive } from 'vue';
+import { defineComponent, reactive } from 'vue';
+import type { PropType } from 'vue';
 import classNames from '../_util/classNames';
 import createRef from '../_util/createRef';
 import raf from '../_util/raf';
 import supportsPassive from '../_util/supportsPassive';
-import PropTypes from '../_util/vue-types';
 
 const MIN_SIZE = 20;
 
@@ -22,11 +22,11 @@ export default defineComponent({
   name: 'ScrollBar',
   inheritAttrs: false,
   props: {
-    prefixCls: PropTypes.string,
-    scrollTop: PropTypes.number,
-    scrollHeight: PropTypes.number,
-    height: PropTypes.number,
-    count: PropTypes.number,
+    prefixCls: String,
+    scrollTop: Number,
+    scrollHeight: Number,
+    height: Number,
+    count: Number,
     onScroll: {
       type: Function as PropType<(scrollTop: number) => void>,
     },
@@ -61,12 +61,12 @@ export default defineComponent({
   },
 
   mounted() {
-    this.scrollbarRef.current.addEventListener(
+    this.scrollbarRef.current?.addEventListener(
       'touchstart',
       this.onScrollbarTouchStart,
       supportsPassive ? ({ passive: false } as EventListenerOptions) : false,
     );
-    this.thumbRef.current.addEventListener(
+    this.thumbRef.current?.addEventListener(
       'touchstart',
       this.onMouseDown,
       supportsPassive ? ({ passive: false } as EventListenerOptions) : false,
@@ -208,37 +208,34 @@ export default defineComponent({
       const ptg = scrollTop / enableScrollRange;
       return ptg * enableHeightRange;
     },
-    // Not show scrollbar when height is large thane scrollHeight
-    getVisible() {
-      const { visible } = this.state;
+    // Not show scrollbar when height is large than scrollHeight
+    showScroll() {
       const { height, scrollHeight } = this.$props;
-
-      if (height >= scrollHeight) {
-        return false;
-      }
-
-      return visible;
+      return scrollHeight > height;
     },
   },
 
   render() {
     // eslint-disable-next-line no-unused-vars
-    const { dragging } = this.state;
+    const { dragging, visible } = this.state;
     const { prefixCls } = this.$props;
     const spinHeight = this.getSpinHeight() + 'px';
     const top = this.getTop() + 'px';
-    const visible = this.getVisible();
+    const canScroll = this.showScroll();
+    const mergedVisible = canScroll && visible;
     return (
       <div
         ref={this.scrollbarRef}
-        class={`${prefixCls}-scrollbar`}
+        class={classNames(`${prefixCls}-scrollbar`, {
+          [`${prefixCls}-scrollbar-show`]: canScroll,
+        })}
         style={{
           width: '8px',
           top: 0,
           bottom: 0,
           right: 0,
           position: 'absolute',
-          display: visible ? undefined : 'none',
+          display: mergedVisible ? undefined : 'none',
         }}
         onMousedown={this.onContainerMouseDown}
         onMousemove={this.delayHidden}

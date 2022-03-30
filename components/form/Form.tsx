@@ -1,20 +1,38 @@
-import { defineComponent, inject, provide, PropType, computed, ExtractPropTypes } from 'vue';
+import type { PropType, ExtractPropTypes, HTMLAttributes, ComponentPublicInstance } from 'vue';
+import { defineComponent, computed, watch, ref } from 'vue';
 import PropTypes from '../_util/vue-types';
 import classNames from '../_util/classNames';
 import warning from '../_util/warning';
+import type { FieldExpose } from './FormItem';
 import FormItem from './FormItem';
-import { getSlot } from '../_util/props-util';
-import { defaultConfigProvider } from '../config-provider';
-import { getNamePath, containsNamePath } from './utils/valueUtil';
+import { getNamePath, containsNamePath, cloneByNamePathList } from './utils/valueUtil';
 import { defaultValidateMessages } from './utils/messages';
 import { allPromiseFinish } from './utils/asyncUtil';
 import { toArray } from './utils/typeUtil';
 import isEqual from 'lodash-es/isEqual';
-import scrollIntoView, { Options } from 'scroll-into-view-if-needed';
+import type { Options } from 'scroll-into-view-if-needed';
+import scrollIntoView from 'scroll-into-view-if-needed';
 import initDefaultProps from '../_util/props-util/initDefaultProps';
-import { tuple, VueNode } from '../_util/type';
-import { ColProps } from '../grid/Col';
-import { InternalNamePath, NamePath, ValidateErrorEntity, ValidateOptions } from './interface';
+import type { VueNode } from '../_util/type';
+import { tuple } from '../_util/type';
+import type { ColProps } from '../grid/Col';
+import type {
+  InternalNamePath,
+  NamePath,
+  RuleError,
+  ValidateErrorEntity,
+  ValidateOptions,
+  Callbacks,
+  ValidateMessages,
+} from './interface';
+import { useInjectSize } from '../_util/hooks/useSize';
+import useConfigInject from '../_util/hooks/useConfigInject';
+import { useProvideForm } from './context';
+import type { SizeType } from '../config-provider';
+import useForm from './useForm';
+
+export type RequiredMark = boolean | 'optional';
+export type FormLayout = 'horizontal' | 'inline' | 'vertical';
 
 export type ValidationRule = {
   /** validation error message */
@@ -43,28 +61,61 @@ export type ValidationRule = {
   trigger?: string;
 };
 
-export const formProps = {
+export const formProps = () => ({
   layout: PropTypes.oneOf(tuple('horizontal', 'inline', 'vertical')),
-  labelCol: { type: Object as PropType<ColProps> },
-  wrapperCol: { type: Object as PropType<ColProps> },
-  colon: PropTypes.looseBool,
+  labelCol: { type: Object as PropType<ColProps & HTMLAttributes> },
+  wrapperCol: { type: Object as PropType<ColProps & HTMLAttributes> },
+  colon: { type: Boolean, default: undefined },
   labelAlign: PropTypes.oneOf(tuple('left', 'right')),
-  prefixCls: PropTypes.string,
-  hideRequiredMark: PropTypes.looseBool,
+  labelWrap: { type: Boolean, default: undefined },
+  prefixCls: String,
+  requiredMark: { type: [String, Boolean] as PropType<RequiredMark | ''>, default: undefined },
+  /** @deprecated Will warning in future branch. Pls use `requiredMark` instead. */
+  hideRequiredMark: { type: Boolean, default: undefined },
   model: PropTypes.object,
   rules: { type: Object as PropType<{ [k: string]: ValidationRule[] | ValidationRule }> },
-  validateMessages: PropTypes.object,
-  validateOnRuleChange: PropTypes.looseBool,
+  validateMessages: {
+    type: Object as PropType<ValidateMessages>,
+    default: undefined as ValidateMessages,
+  },
+  validateOnRuleChange: { type: Boolean, default: undefined },
   // 提交失败自动滚动到第一个错误字段
   scrollToFirstError: { type: [Boolean, Object] as PropType<boolean | Options> },
-  onSubmit: PropTypes.func,
-  onFinish: PropTypes.func,
-  onFinishFailed: PropTypes.func,
-  name: PropTypes.string,
+  onSubmit: Function as PropType<(e: Event) => void>,
+  name: String,
   validateTrigger: { type: [String, Array] as PropType<string | string[]> },
+  size: { type: String as PropType<SizeType> },
+  onValuesChange: { type: Function as PropType<Callbacks['onValuesChange']> },
+  onFieldsChange: { type: Function as PropType<Callbacks['onFieldsChange']> },
+  onFinish: { type: Function as PropType<Callbacks['onFinish']> },
+  onFinishFailed: { type: Function as PropType<Callbacks['onFinishFailed']> },
+  onValidate: { type: Function as PropType<Callbacks['onValidate']> },
+});
+
+export type FormProps = Partial<ExtractPropTypes<ReturnType<typeof formProps>>>;
+
+export type FormExpose = {
+  resetFields: (name?: NamePath) => void;
+  clearValidate: (name?: NamePath) => void;
+  validateFields: (
+    nameList?: NamePath[] | string,
+    options?: ValidateOptions,
+  ) => Promise<{
+    [key: string]: any;
+  }>;
+  getFieldsValue: (nameList?: InternalNamePath[] | true) => {
+    [key: string]: any;
+  };
+  validate: (
+    nameList?: NamePath[] | string,
+    options?: ValidateOptions,
+  ) => Promise<{
+    [key: string]: any;
+  }>;
+  scrollToField: (name: NamePath, options?: {}) => void;
 };
 
-export type FormProps = Partial<ExtractPropTypes<typeof formProps>>;
+export type FormInstance = ComponentPublicInstance<FormProps, FormExpose>;
 
 function isEqualName(name1: NamePath, name2: NamePath) {
   return isEqual(toArray(name1), toArray(name2));
@@ -73,98 +124,100 @@ function isEqualName(name1: NamePath, name2: NamePath) {
 const Form = defineComponent({
   name: 'AForm',
   inheritAttrs: false,
-  props: initDefaultProps(formProps, {
+  props: initDefaultProps(formProps(), {
     layout: 'horizontal',
     hideRequiredMark: false,
     colon: true,
   }),
   Item: FormItem,
-  setup(props) {
-    return {
-      configProvider: inject('configProvider', defaultConfigProvider),
-      fields: [],
-      form: undefined,
-      lastValidatePromise: null,
-      vertical: computed(() => props.layout === 'vertical'),
+  useForm,
+  // emits: ['finishFailed', 'submit', 'finish', 'validate'],
+  setup(props, { emit, slots, expose, attrs }) {
+    const size = useInjectSize(props);
+    const { prefixCls, direction, form: contextForm } = useConfigInject('form', props);
+    const requiredMark = computed(() => props.requiredMark === '' || props.requiredMark);
+    const mergedRequiredMark = computed(() => {
+      if (requiredMark.value !== undefined) {
+        return requiredMark.value;
+      }
+
+      if (contextForm && contextForm.value?.requiredMark !== undefined) {
+        return contextForm.value.requiredMark;
+      }
+
+      if (props.hideRequiredMark) {
+        return false;
+      }
+      return true;
+    });
+    const mergedColon = computed(() => props.colon ?? contextForm.value?.colon);
+    const validateMessages = computed(() => {
+      return {
+        ...defaultValidateMessages,
+        ...props.validateMessages,
+      };
+    });
+    const formClassName = computed(() =>
+      classNames(prefixCls.value, {
+        [`${prefixCls.value}-${props.layout}`]: true,
+        [`${prefixCls.value}-hide-required-mark`]: mergedRequiredMark.value === false,
+        [`${prefixCls.value}-rtl`]: direction.value === 'rtl',
+        [`${prefixCls.value}-${size.value}`]: size.value,
+      }),
+    );
+    const lastValidatePromise = ref();
+    const fields: Record<string, FieldExpose> = {};
+    const addField = (eventKey: string, field: FieldExpose) => {
+      fields[eventKey] = field;
     };
-  },
-  watch: {
-    rules() {
-      if (this.validateOnRuleChange) {
-        this.validateFields();
-      }
-    },
-  },
-  created() {
-    provide('FormContext', this);
-  },
-  methods: {
-    addField(field: any) {
-      if (field) {
-        this.fields.push(field);
-      }
-    },
-    removeField(field: any) {
-      if (field.fieldName) {
-        this.fields.splice(this.fields.indexOf(field), 1);
-      }
-    },
-    handleSubmit(e: Event) {
-      e.preventDefault();
-      e.stopPropagation();
-      this.$emit('submit', e);
-      const res = this.validateFields();
-      res
-        .then(values => {
-          this.$emit('finish', values);
-        })
-        .catch(errors => {
-          this.handleFinishFailed(errors);
-        });
-    },
-    getFieldsByNameList(nameList: NamePath) {
+    const removeField = (eventKey: string) => {
+      delete fields[eventKey];
+    };
+
+    const getFieldsByNameList = (nameList: NamePath[]) => {
       const provideNameList = !!nameList;
       const namePathList = provideNameList ? toArray(nameList).map(getNamePath) : [];
       if (!provideNameList) {
-        return this.fields;
+        return Object.values(fields);
       } else {
-        return this.fields.filter(
-          field => namePathList.findIndex(namePath => isEqualName(namePath, field.fieldName)) > -1,
+        return Object.values(fields).filter(
+          field =>
+            namePathList.findIndex(namePath => isEqualName(namePath, field.fieldName.value)) > -1,
         );
       }
-    },
-    resetFields(name: NamePath) {
-      if (!this.model) {
+    };
+    const resetFields = (name?: NamePath) => {
+      if (!props.model) {
         warning(false, 'Form', 'model is required for resetFields to work.');
         return;
       }
-      this.getFieldsByNameList(name).forEach(field => {
+      getFieldsByNameList(name ? [name] : undefined).forEach(field => {
         field.resetField();
       });
-    },
-    clearValidate(name: NamePath) {
-      this.getFieldsByNameList(name).forEach(field => {
+    };
+    const clearValidate = (name?: NamePath) => {
+      getFieldsByNameList(name ? [name] : undefined).forEach(field => {
         field.clearValidate();
       });
-    },
-    handleFinishFailed(errorInfo: ValidateErrorEntity) {
-      const { scrollToFirstError } = this;
-      this.$emit('finishFailed', errorInfo);
+    };
+    const handleFinishFailed = (errorInfo: ValidateErrorEntity) => {
+      const { scrollToFirstError } = props;
+      emit('finishFailed', errorInfo);
       if (scrollToFirstError && errorInfo.errorFields.length) {
         let scrollToFieldOptions: Options = {};
         if (typeof scrollToFirstError === 'object') {
           scrollToFieldOptions = scrollToFirstError;
         }
-        this.scrollToField(errorInfo.errorFields[0].name, scrollToFieldOptions);
+        scrollToField(errorInfo.errorFields[0].name, scrollToFieldOptions);
       }
-    },
-    validate(...args: any[]) {
-      return this.validateField(...args);
-    },
-    scrollToField(name: NamePath, options = {}) {
-      const fields = this.getFieldsByNameList(name);
+    };
+    const validate = (...args: any[]) => {
+      return validateField(...args);
+    };
+    const scrollToField = (name?: NamePath, options = {}) => {
+      const fields = getFieldsByNameList(name ? [name] : undefined);
       if (fields.length) {
-        const fieldId = fields[0].fieldId;
+        const fieldId = fields[0].fieldId.value;
         const node = fieldId ? document.getElementById(fieldId) : null;
 
         if (node) {
@@ -175,30 +228,26 @@ const Form = defineComponent({
           });
         }
       }
-    },
+    };
     // eslint-disable-next-line no-unused-vars
-    getFieldsValue(nameList: NamePath[] | true = true) {
-      const values: any = {};
-      this.fields.forEach(({ fieldName, fieldValue }) => {
-        values[fieldName] = fieldValue;
-      });
+    const getFieldsValue = (nameList: InternalNamePath[] | true = true) => {
       if (nameList === true) {
-        return values;
+        const allNameList = [];
+        Object.values(fields).forEach(({ namePath }) => {
+          allNameList.push(namePath.value);
+        });
+        return cloneByNamePathList(props.model, allNameList);
       } else {
-        const res: any = {};
-        toArray(nameList as NamePath[]).forEach(
-          namePath => (res[namePath as string] = values[namePath as string]),
-        );
-        return res;
+        return cloneByNamePathList(props.model, nameList);
       }
-    },
-    validateFields(nameList?: NamePath[], options?: ValidateOptions) {
+    };
+    const validateFields = (nameList?: NamePath[], options?: ValidateOptions) => {
       warning(
         !(nameList instanceof Function),
         'Form',
         'validateFields/validateField/validate not support callback, please use promise instead',
       );
-      if (!this.model) {
+      if (!props.model) {
         warning(false, 'Form', 'model is required for validateFields to work.');
         return Promise.reject('Form `model` is required for validateFields to work.');
       }
@@ -213,59 +262,76 @@ const Form = defineComponent({
         errors: string[];
       }>[] = [];
 
-      this.fields.forEach(field => {
+      Object.values(fields).forEach(field => {
         // Add field if not provide `nameList`
         if (!provideNameList) {
-          namePathList.push(field.getNamePath());
+          namePathList.push(field.namePath.value);
         }
 
         // Skip if without rule
-        if (!field.getRules().length) {
+        if (!field.rules?.value.length) {
           return;
         }
 
-        const fieldNamePath = field.getNamePath();
+        const fieldNamePath = field.namePath.value;
 
         // Add field validate rule in to promise list
         if (!provideNameList || containsNamePath(namePathList, fieldNamePath)) {
           const promise = field.validateRules({
-            validateMessages: {
-              ...defaultValidateMessages,
-              ...this.validateMessages,
-            },
+            validateMessages: validateMessages.value,
             ...options,
           });
 
           // Wrap promise with field
           promiseList.push(
             promise
-              .then(() => ({ name: fieldNamePath, errors: [] }))
-              .catch((errors: any) =>
-                Promise.reject({
+              .then<any, RuleError>(() => ({ name: fieldNamePath, errors: [], warnings: [] }))
+              .catch((ruleErrors: RuleError[]) => {
+                const mergedErrors: string[] = [];
+                const mergedWarnings: string[] = [];
+
+                ruleErrors.forEach(({ rule: { warningOnly }, errors }) => {
+                  if (warningOnly) {
+                    mergedWarnings.push(...errors);
+                  } else {
+                    mergedErrors.push(...errors);
+                  }
+                });
+
+                if (mergedErrors.length) {
+                  return Promise.reject({
+                    name: fieldNamePath,
+                    errors: mergedErrors,
+                    warnings: mergedWarnings,
+                  });
+                }
+
+                return {
                   name: fieldNamePath,
-                  errors,
-                }),
-              ),
+                  errors: mergedErrors,
+                  warnings: mergedWarnings,
+                };
+              }),
           );
         }
       });
 
       const summaryPromise = allPromiseFinish(promiseList);
-      this.lastValidatePromise = summaryPromise;
+      lastValidatePromise.value = summaryPromise;
 
       const returnPromise = summaryPromise
         .then(() => {
-          if (this.lastValidatePromise === summaryPromise) {
-            return Promise.resolve(this.getFieldsValue(namePathList));
+          if (lastValidatePromise.value === summaryPromise) {
+            return Promise.resolve(getFieldsValue(namePathList));
           }
           return Promise.reject([]);
         })
         .catch(results => {
           const errorList = results.filter(result => result && result.errors.length);
           return Promise.reject({
-            values: this.getFieldsValue(namePathList),
+            values: getFieldsValue(namePathList),
             errorFields: errorList,
-            outOfDate: this.lastValidatePromise !== summaryPromise,
+            outOfDate: lastValidatePromise.value !== summaryPromise,
           });
         });
 
@@ -273,32 +339,75 @@ const Form = defineComponent({
       returnPromise.catch(e => e);
 
       return returnPromise;
-    },
-    validateField(...args: any[]) {
-      return this.validateFields(...args);
-    },
-  },
+    };
+    const validateField = (...args: any[]) => {
+      return validateFields(...args);
+    };
 
-  render() {
-    const { prefixCls: customizePrefixCls, hideRequiredMark, layout, handleSubmit } = this;
-    const getPrefixCls = this.configProvider.getPrefixCls;
-    const prefixCls = getPrefixCls('form', customizePrefixCls);
-    const { class: className, ...restProps } = this.$attrs;
+    const handleSubmit = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      emit('submit', e);
+      if (props.model) {
+        const res = validateFields();
+        res
+          .then(values => {
+            emit('finish', values);
+          })
+          .catch(errors => {
+            handleFinishFailed(errors);
+          });
+      }
+    };
+    expose({
+      resetFields,
+      clearValidate,
+      validateFields,
+      getFieldsValue,
+      validate,
+      scrollToField,
+    } as FormExpose);
 
-    const formClassName = classNames(prefixCls, className, {
-      [`${prefixCls}-horizontal`]: layout === 'horizontal',
-      [`${prefixCls}-vertical`]: layout === 'vertical',
-      [`${prefixCls}-inline`]: layout === 'inline',
-      [`${prefixCls}-hide-required-mark`]: hideRequiredMark,
+    useProvideForm({
+      model: computed(() => props.model),
+      name: computed(() => props.name),
+      labelAlign: computed(() => props.labelAlign),
+      labelCol: computed(() => props.labelCol),
+      labelWrap: computed(() => props.labelWrap),
+      wrapperCol: computed(() => props.wrapperCol),
+      vertical: computed(() => props.layout === 'vertical'),
+      colon: mergedColon,
+      requiredMark: mergedRequiredMark,
+      validateTrigger: computed(() => props.validateTrigger),
+      rules: computed(() => props.rules),
+      addField,
+      removeField,
+      onValidate: (name, status, errors) => {
+        emit('validate', name, status, errors);
+      },
+      validateMessages,
     });
-    return (
-      <form onSubmit={handleSubmit} class={formClassName} {...restProps}>
-        {getSlot(this)}
-      </form>
+
+    watch(
+      () => props.rules,
+      () => {
+        if (props.validateOnRuleChange) {
+          validateFields();
+        }
+      },
     );
+
+    return () => {
+      return (
+        <form {...attrs} onSubmit={handleSubmit} class={[formClassName.value, attrs.class]}>
+          {slots.default?.()}
+        </form>
+      );
+    };
   },
 });
 
 export default Form as typeof Form & {
   readonly Item: typeof FormItem;
+  readonly useForm: typeof useForm;
 };

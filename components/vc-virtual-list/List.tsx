@@ -1,16 +1,19 @@
+import type { PropType, Component, CSSProperties } from 'vue';
 import {
+  shallowRef,
+  toRaw,
+  onMounted,
+  onUpdated,
   ref,
   defineComponent,
-  PropType,
   watchEffect,
-  Component,
   computed,
   nextTick,
   onBeforeUnmount,
   reactive,
-  CSSProperties,
+  watch,
 } from 'vue';
-import { Key } from '../_util/type';
+import type { Key } from '../_util/type';
 import Filler from './Filler';
 import Item from './Item';
 import ScrollBar from './ScrollBar';
@@ -21,7 +24,7 @@ import useMobileTouchMove from './hooks/useMobileTouchMove';
 import useOriginScroll from './hooks/useOriginScroll';
 import PropTypes from '../_util/vue-types';
 import classNames from '../_util/classNames';
-import { RenderFunc, SharedConfig } from './interface';
+import type { RenderFunc, SharedConfig } from './interface';
 import supportsPassive from '../_util/supportsPassive';
 
 const EMPTY_DATA = [];
@@ -30,6 +33,20 @@ const ScrollStyle: CSSProperties = {
   overflowY: 'auto',
   overflowAnchor: 'none',
 };
+
+export type ScrollAlign = 'top' | 'bottom' | 'auto';
+export type ScrollConfig =
+  | {
+      index: number;
+      align?: ScrollAlign;
+      offset?: number;
+    }
+  | {
+      key: Key;
+      align?: ScrollAlign;
+      offset?: number;
+    };
+export type ScrollTo = (arg: number | ScrollConfig) => void;
 
 function renderChildren<T>(
   list: T[],
@@ -53,37 +70,37 @@ function renderChildren<T>(
   });
 }
 
-export interface ListState<T = object> {
+export interface ListState {
   scrollTop: number;
   scrollMoving: boolean;
-  mergedData: T[];
 }
 
 const List = defineComponent({
   name: 'List',
   inheritAttrs: false,
   props: {
-    prefixCls: PropTypes.string,
+    prefixCls: String,
     data: PropTypes.array,
-    height: PropTypes.number,
-    itemHeight: PropTypes.number,
+    height: Number,
+    itemHeight: Number,
     /** If not match virtual scroll condition, Set List still use height of container. */
-    fullHeight: PropTypes.looseBool,
+    fullHeight: { type: Boolean, default: undefined },
     itemKey: {
-      type: [String, Number, Function] as PropType<Key | ((item: object) => Key)>,
+      type: [String, Number, Function] as PropType<Key | ((item: Record<string, any>) => Key)>,
       required: true,
     },
     component: {
       type: [String, Object] as PropType<string | Component>,
     },
     /** Set `false` will always use real scroll instead of virtual one */
-    virtual: PropTypes.looseBool,
-    children: PropTypes.func,
-    onScroll: PropTypes.func,
-    onMousedown: PropTypes.func,
-    onMouseenter: PropTypes.func,
+    virtual: { type: Boolean, default: undefined },
+    children: Function,
+    onScroll: Function,
+    onMousedown: Function,
+    onMouseenter: Function,
+    onVisibleChange: Function as PropType<(visibleList: any[], fullList: any[]) => void>,
   },
-  setup(props) {
+  setup(props, { expose }) {
     // ================================= MISC =================================
     const useVirtual = computed(() => {
       const { height, itemHeight, virtual } = props;
@@ -97,18 +114,37 @@ const List = defineComponent({
     const state = reactive<ListState>({
       scrollTop: 0,
       scrollMoving: false,
-      mergedData: computed(() => props.data || EMPTY_DATA) as any,
     });
-
+    const data = computed(() => {
+      return props.data || EMPTY_DATA;
+    });
+    const mergedData = shallowRef([]);
+    watch(
+      data,
+      () => {
+        mergedData.value = toRaw(data.value).slice();
+      },
+      { immediate: true },
+    );
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const itemKey = shallowRef((_item: Record<string, any>) => undefined);
+    watch(
+      () => props.itemKey,
+      val => {
+        if (typeof val === 'function') {
+          itemKey.value = val;
+        } else {
+          itemKey.value = item => item?.[val];
+        }
+      },
+      { immediate: true },
+    );
     const componentRef = ref<HTMLDivElement>();
     const fillerInnerRef = ref<HTMLDivElement>();
     const scrollBarRef = ref<any>(); // Hack on scrollbar to enable flash call
     // =============================== Item Key ===============================
     const getKey = (item: Record<string, any>) => {
-      if (typeof props.itemKey === 'function') {
-        return props.itemKey(item);
-      }
-      return item[props.itemKey];
+      return itemKey.value(item);
     };
 
     const sharedConfig = {
@@ -133,81 +169,144 @@ const List = defineComponent({
     }
 
     // ================================ Height ================================
-    const [setInstance, collectHeight, heights] = useHeights(getKey, null, null);
-    // ========================== Visible Calculation =========================
-    const calRes = computed(() => {
-      if (!useVirtual.value) {
-        return {
-          scrollHeight: undefined,
-          start: 0,
-          end: state.mergedData.length - 1,
-          offset: undefined,
-        };
-      }
+    const [setInstance, collectHeight, heights, updatedMark] = useHeights(
+      mergedData,
+      getKey,
+      null,
+      null,
+    );
 
-      // Always use virtual scroll bar in avoid shaking
-      if (!inVirtual.value) {
-        return {
-          scrollHeight: fillerInnerRef.value?.offsetHeight || 0,
-          start: 0,
-          end: state.mergedData.length - 1,
-          offset: undefined,
-        };
-      }
-
-      let itemTop = 0;
-      let startIndex: number | undefined;
-      let startOffset: number | undefined;
-      let endIndex: number | undefined;
-      const dataLen = state.mergedData.length;
-      for (let i = 0; i < dataLen; i += 1) {
-        const item = state.mergedData[i];
-        const key = getKey(item);
-
-        const cacheHeight = heights[key];
-        const currentItemBottom =
-          itemTop + (cacheHeight === undefined ? props.itemHeight! : cacheHeight);
-
-        if (currentItemBottom >= state.scrollTop && startIndex === undefined) {
-          startIndex = i;
-          startOffset = itemTop;
-        }
-
-        // Check item bottom in the range. We will render additional one item for motion usage
-        if (currentItemBottom > state.scrollTop + props.height! && endIndex === undefined) {
-          endIndex = i;
-        }
-
-        itemTop = currentItemBottom;
-      }
-
-      // Fallback to normal if not match. This code should never reach
-      /* istanbul ignore next */
-      if (startIndex === undefined) {
-        startIndex = 0;
-        startOffset = 0;
-      }
-      if (endIndex === undefined) {
-        endIndex = state.mergedData.length - 1;
-      }
-
-      // Give cache to improve scroll experience
-      endIndex = Math.min(endIndex + 1, state.mergedData.length);
-      return {
-        scrollHeight: itemTop,
-        start: startIndex,
-        end: endIndex,
-        offset: startOffset,
-      };
+    const calRes = reactive<{
+      scrollHeight?: number;
+      start?: number;
+      end?: number;
+      offset?: number;
+    }>({
+      scrollHeight: undefined,
+      start: 0,
+      end: 0,
+      offset: undefined,
     });
+
+    const offsetHeight = ref(0);
+    onMounted(() => {
+      nextTick(() => {
+        offsetHeight.value = fillerInnerRef.value?.offsetHeight || 0;
+      });
+    });
+    onUpdated(() => {
+      nextTick(() => {
+        offsetHeight.value = fillerInnerRef.value?.offsetHeight || 0;
+      });
+    });
+    watch(
+      [useVirtual, mergedData],
+      () => {
+        if (!useVirtual.value) {
+          Object.assign(calRes, {
+            scrollHeight: undefined,
+            start: 0,
+            end: mergedData.value.length - 1,
+            offset: undefined,
+          });
+        }
+      },
+      { immediate: true },
+    );
+    watch(
+      [useVirtual, mergedData, offsetHeight, inVirtual],
+      () => {
+        // Always use virtual scroll bar in avoid shaking
+        if (useVirtual.value && !inVirtual.value) {
+          Object.assign(calRes, {
+            scrollHeight: offsetHeight.value,
+            start: 0,
+            end: mergedData.value.length - 1,
+            offset: undefined,
+          });
+        }
+      },
+      { immediate: true },
+    );
+    watch(
+      [
+        inVirtual,
+        useVirtual,
+        () => state.scrollTop,
+        mergedData,
+        updatedMark,
+        () => props.height,
+        offsetHeight,
+      ],
+      () => {
+        if (!useVirtual.value || !inVirtual.value) {
+          return;
+        }
+
+        let itemTop = 0;
+        let startIndex: number | undefined;
+        let startOffset: number | undefined;
+        let endIndex: number | undefined;
+        const dataLen = mergedData.value.length;
+        const data = mergedData.value;
+        const scrollTop = state.scrollTop;
+        const { itemHeight, height } = props;
+        const scrollTopHeight = scrollTop + height;
+
+        for (let i = 0; i < dataLen; i += 1) {
+          const item = data[i];
+          const key = getKey(item);
+
+          let cacheHeight = heights.get(key);
+          if (cacheHeight === undefined) {
+            cacheHeight = itemHeight;
+          }
+          const currentItemBottom = itemTop + cacheHeight;
+
+          if (startIndex === undefined && currentItemBottom >= scrollTop) {
+            startIndex = i;
+            startOffset = itemTop;
+          }
+
+          // Check item bottom in the range. We will render additional one item for motion usage
+          if (endIndex === undefined && currentItemBottom > scrollTopHeight) {
+            endIndex = i;
+          }
+
+          itemTop = currentItemBottom;
+        }
+
+        // Fallback to normal if not match. This code should never reach
+        /* istanbul ignore next */
+        if (startIndex === undefined) {
+          startIndex = 0;
+          startOffset = 0;
+        }
+        if (endIndex === undefined) {
+          endIndex = dataLen - 1;
+        }
+
+        // Give cache to improve scroll experience
+        endIndex = Math.min(endIndex + 1, dataLen);
+        Object.assign(calRes, {
+          scrollHeight: itemTop,
+          start: startIndex,
+          end: endIndex,
+          offset: startOffset,
+        });
+      },
+      { immediate: true },
+    );
+
     // =============================== In Range ===============================
-    const maxScrollHeight = computed(() => calRes.value.scrollHeight! - props.height!);
+    const maxScrollHeight = computed(() => calRes.scrollHeight! - props.height!);
 
     function keepInRange(newScrollTop: number) {
-      let newTop = Math.max(newScrollTop, 0);
+      let newTop = newScrollTop;
       if (!Number.isNaN(maxScrollHeight.value)) {
         newTop = Math.min(newTop, maxScrollHeight.value);
       }
+      newTop = Math.max(newTop, 0);
       return newTop;
     }
 
@@ -222,8 +321,7 @@ const List = defineComponent({
       syncScrollTop(newTop);
     }
 
-    // This code may only trigger in test case.
-    // But we still need a sync if some special escape
+    // When data size reduce. It may trigger native scroll event back to fit scroll position
     function onFallbackScroll(e: UIEvent) {
       const { scrollTop: newScrollTop } = e.currentTarget as Element;
       if (Math.abs(newScrollTop - state.scrollTop) >= 1) {
@@ -295,7 +393,7 @@ const List = defineComponent({
     // ================================= Ref ==================================
     const scrollTo = useScrollTo(
       componentRef,
-      state,
+      mergedData,
       heights,
       props,
       getKey,
@@ -305,6 +403,10 @@ const List = defineComponent({
         scrollBarRef.value?.delayHidden();
       },
     );
+
+    expose({
+      scrollTo,
+    });
 
     const componentStyle = computed(() => {
       let cs: CSSProperties | null = null;
@@ -322,10 +424,24 @@ const List = defineComponent({
       return cs;
     });
 
+    // ================================ Effect ================================
+    /** We need told outside that some list not rendered */
+    watch(
+      [() => calRes.start, () => calRes.end, mergedData],
+      () => {
+        if (props.onVisibleChange) {
+          const renderList = mergedData.value.slice(calRes.start, calRes.end + 1);
+
+          props.onVisibleChange(renderList, mergedData.value);
+        }
+      },
+      { flush: 'post' },
+    );
+
     return {
       state,
+      mergedData,
       componentStyle,
-      scrollTo,
       onFallbackScroll,
       onScrollBar,
       componentRef,
@@ -350,13 +466,13 @@ const List = defineComponent({
       virtual,
       component: Component = 'div',
       onScroll,
-      children,
+      children = this.$slots.default,
       style,
       class: className,
       ...restProps
     } = { ...this.$props, ...this.$attrs } as any;
     const mergedClassName = classNames(prefixCls, className);
-    const { scrollTop, mergedData } = this.state;
+    const { scrollTop } = this.state;
     const { scrollHeight, offset, start, end } = this.calRes;
     const {
       componentStyle,
@@ -366,16 +482,8 @@ const List = defineComponent({
       collectHeight,
       sharedConfig,
       setInstance,
-    } = this;
-    const listChildren = renderChildren(
       mergedData,
-      start,
-      end,
-      setInstance,
-      children,
-      sharedConfig,
-    );
-
+    } = this;
     return (
       <div
         style={{
@@ -397,9 +505,11 @@ const List = defineComponent({
             offset={offset}
             onInnerResize={collectHeight}
             ref="fillerInnerRef"
-          >
-            {listChildren}
-          </Filler>
+            v-slots={{
+              default: () =>
+                renderChildren(mergedData, start, end, setInstance, children, sharedConfig),
+            }}
+          ></Filler>
         </Component>
 
         {useVirtual && (

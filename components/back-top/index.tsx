@@ -1,108 +1,143 @@
-import { defineComponent, inject, nextTick } from 'vue';
-import classNames from '../_util/classNames';
-import PropTypes from '../_util/vue-types';
-import backTopTypes from './backTopTypes';
+import type { ExtractPropTypes, PropType } from 'vue';
+import {
+  defineComponent,
+  nextTick,
+  onActivated,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+  onDeactivated,
+} from 'vue';
+import VerticalAlignTopOutlined from '@ant-design/icons-vue/VerticalAlignTopOutlined';
 import addEventListener from '../vc-util/Dom/addEventListener';
 import getScroll from '../_util/getScroll';
-import BaseMixin from '../_util/BaseMixin';
 import { getTransitionProps, Transition } from '../_util/transition';
-import { defaultConfigProvider } from '../config-provider';
 import scrollTo from '../_util/scrollTo';
 import { withInstall } from '../_util/type';
+import throttleByAnimationFrame from '../_util/throttleByAnimationFrame';
+import useConfigInject from '../_util/hooks/useConfigInject';
+import type { MouseEventHandler } from '../_util/EventInterface';
 
-function getDefaultTarget() {
-  return window;
-}
+export const backTopProps = () => ({
+  visibilityHeight: { type: Number, default: 400 },
+  duration: { type: Number, default: 450 },
+  target: Function as PropType<() => HTMLElement | Window | Document>,
+  prefixCls: String,
+  onClick: Function as PropType<MouseEventHandler>,
+  // visible: { type: Boolean, default: undefined }, // Only for test. Don't use it.
+});
 
-const props = backTopTypes();
+export type BackTopProps = Partial<ExtractPropTypes<typeof backTopProps>>;
 
 const BackTop = defineComponent({
   name: 'ABackTop',
-  mixins: [BaseMixin],
   inheritAttrs: false,
-  props: {
-    ...props,
-    visibilityHeight: PropTypes.number.def(400),
-  },
-  emits: ['click'],
-  setup() {
-    return {
-      configProvider: inject('configProvider', defaultConfigProvider),
-    };
-  },
-  data() {
-    return {
+  props: backTopProps(),
+  // emits: ['click'],
+  setup(props, { slots, attrs, emit }) {
+    const { prefixCls, direction } = useConfigInject('back-top', props);
+    const domRef = ref();
+    const state = reactive({
       visible: false,
       scrollEvent: null,
-    };
-  },
-  mounted() {
-    nextTick(() => {
-      const getTarget = this.target || getDefaultTarget;
-      this.scrollEvent = addEventListener(getTarget(), 'scroll', this.handleScroll);
-      this.handleScroll();
     });
-  },
 
-  activated() {
-    nextTick(() => {
-      this.handleScroll();
-    });
-  },
-  beforeUnmount() {
-    if (this.scrollEvent) {
-      this.scrollEvent.remove();
-    }
-  },
-  methods: {
-    getCurrentScrollTop() {
-      const getTarget = this.target || getDefaultTarget;
-      const targetNode = getTarget();
-      if (targetNode === window) {
-        return window.pageYOffset || document.body.scrollTop || document.documentElement.scrollTop;
-      }
-      return targetNode.scrollTop;
-    },
+    const getDefaultTarget = () =>
+      domRef.value && domRef.value.ownerDocument ? domRef.value.ownerDocument : window;
 
-    scrollToTop(e: Event) {
-      const { target = getDefaultTarget } = this;
+    const scrollToTop = (e: Event) => {
+      const { target = getDefaultTarget, duration } = props;
       scrollTo(0, {
         getContainer: target,
+        duration,
       });
-      this.$emit('click', e);
-    },
-
-    handleScroll() {
-      const { visibilityHeight, target = getDefaultTarget } = this;
-      const scrollTop = getScroll(target(), true);
-      this.setState({
-        visible: scrollTop > visibilityHeight,
-      });
-    },
-  },
-
-  render() {
-    const { prefixCls: customizePrefixCls, $slots } = this;
-
-    const getPrefixCls = this.configProvider.getPrefixCls;
-    const prefixCls = getPrefixCls('back-top', customizePrefixCls);
-    const classString = classNames(prefixCls, this.$attrs.class);
-    const defaultElement = (
-      <div class={`${prefixCls}-content`}>
-        <div class={`${prefixCls}-icon`} />
-      </div>
-    );
-    const divProps = {
-      ...this.$attrs,
-      onClick: this.scrollToTop,
-      class: classString,
+      emit('click', e);
     };
 
-    const backTopBtn = this.visible ? (
-      <div {...divProps}>{$slots.default?.() || defaultElement}</div>
-    ) : null;
-    const transitionProps = getTransitionProps('fade');
-    return <Transition {...transitionProps}>{backTopBtn}</Transition>;
+    const handleScroll = throttleByAnimationFrame((e: Event | { target: any }) => {
+      const { visibilityHeight } = props;
+      const scrollTop = getScroll(e.target, true);
+      state.visible = scrollTop > visibilityHeight;
+    });
+
+    const bindScrollEvent = () => {
+      const { target } = props;
+      const getTarget = target || getDefaultTarget;
+      const container = getTarget();
+      state.scrollEvent = addEventListener(container, 'scroll', (e: Event) => {
+        handleScroll(e);
+      });
+      handleScroll({
+        target: container,
+      });
+    };
+
+    const scrollRemove = () => {
+      if (state.scrollEvent) {
+        state.scrollEvent.remove();
+      }
+      (handleScroll as any).cancel();
+    };
+
+    watch(
+      () => props.target,
+      () => {
+        scrollRemove();
+        nextTick(() => {
+          bindScrollEvent();
+        });
+      },
+    );
+
+    onMounted(() => {
+      nextTick(() => {
+        bindScrollEvent();
+      });
+    });
+
+    onActivated(() => {
+      nextTick(() => {
+        bindScrollEvent();
+      });
+    });
+
+    onDeactivated(() => {
+      scrollRemove();
+    });
+
+    onBeforeUnmount(() => {
+      scrollRemove();
+    });
+
+    return () => {
+      const defaultElement = (
+        <div class={`${prefixCls.value}-content`}>
+          <div class={`${prefixCls.value}-icon`}>
+            <VerticalAlignTopOutlined />
+          </div>
+        </div>
+      );
+      const divProps = {
+        ...attrs,
+        onClick: scrollToTop,
+        class: {
+          [`${prefixCls.value}`]: true,
+          [`${attrs.class}`]: attrs.class,
+          [`${prefixCls.value}-rtl`]: direction.value === 'rtl',
+        },
+      };
+
+      const transitionProps = getTransitionProps('fade');
+      return (
+        <Transition {...transitionProps}>
+          <div v-show={state.visible} {...divProps} ref={domRef}>
+            {slots.default?.() || defaultElement}
+          </div>
+        </Transition>
+      );
+    };
   },
 });
 

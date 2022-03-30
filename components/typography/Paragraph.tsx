@@ -1,8 +1,12 @@
-import Omit from 'omit.js';
-import { FunctionalComponent } from 'vue';
-import Base, { BlockProps, baseProps } from './Base';
+import type { ExtractPropTypes, FunctionalComponent } from 'vue';
+import omit from '../_util/omit';
+import Base, { baseProps } from './Base';
 
-const Paragraph: FunctionalComponent<BlockProps> = (props, { slots, attrs }) => {
+export const paragraphProps = () => omit(baseProps(), ['component']);
+
+export type ParagraphProps = Partial<ExtractPropTypes<ReturnType<typeof paragraphProps>>>;
+
+const Paragraph: FunctionalComponent<ParagraphProps> = (props, { slots, attrs }) => {
   const paragraphProps = {
     ...props,
     component: 'div',
@@ -14,6 +18,6 @@ const Paragraph: FunctionalComponent<BlockProps> = (props, { slots, attrs }) => 
 
 Paragraph.displayName = 'ATypographyParagraph';
 Paragraph.inheritAttrs = false;
-Paragraph.props = Omit(baseProps(), ['component']);
+Paragraph.props = paragraphProps();
 
 export default Paragraph;

@@ -1,121 +1,112 @@
-import { reactive, provide, VNodeTypes, PropType, defineComponent, watch } from 'vue';
-import PropTypes from '../_util/vue-types';
-import defaultRenderEmpty, { RenderEmptyHandler } from './renderEmpty';
-import LocaleProvider, { Locale, ANT_MARK } from '../locale-provider';
-import { TransformCellTextProps } from '../table/interface';
+import type { UnwrapRef, App, Plugin, WatchStopHandle } from 'vue';
+import { computed, reactive, provide, defineComponent, watch, watchEffect } from 'vue';
+import defaultRenderEmpty from './renderEmpty';
+import type { RenderEmptyHandler } from './renderEmpty';
+import type { Locale } from '../locale-provider';
+import LocaleProvider, { ANT_MARK } from '../locale-provider';
+
 import LocaleReceiver from '../locale-provider/LocaleReceiver';
-import { withInstall } from '../_util/type';
 
-export type SizeType = 'small' | 'middle' | 'large' | undefined;
+import type { MaybeRef } from '../_util/type';
+import message from '../message';
+import notification from '../notification';
+import { registerTheme } from './cssVariables';
+import defaultLocale from '../locale/default';
+import type { ValidateMessages } from '../form/interface';
 
-export interface CSPConfig {
-  nonce?: string;
+import type { ConfigProviderProps, Theme } from './context';
+import { configProviderProps, useProvideGlobalForm } from './context';
+
+export type { ConfigProviderProps, Theme, SizeType, Direction, CSPConfig } from './context';
+export const defaultPrefixCls = 'ant';
+function getGlobalPrefixCls() {
+  return globalConfigForApi.prefixCls || defaultPrefixCls;
 }
+const globalConfigByCom = reactive<ConfigProviderProps>({});
+const globalConfigBySet = reactive<ConfigProviderProps>({}); // 权重最大
+export const globalConfigForApi = reactive<
+  ConfigProviderProps & {
+    getRootPrefixCls?: (rootPrefixCls?: string, customizePrefixCls?: string) => string;
+  }
+>({});
 
-export { RenderEmptyHandler };
+watchEffect(() => {
+  Object.assign(globalConfigForApi, globalConfigByCom, globalConfigBySet);
+  globalConfigForApi.prefixCls = getGlobalPrefixCls();
+  globalConfigForApi.getPrefixCls = (suffixCls?: string, customizePrefixCls?: string) => {
+    if (customizePrefixCls) return customizePrefixCls;
+    return suffixCls
+      ? `${globalConfigForApi.prefixCls}-${suffixCls}`
+      : globalConfigForApi.prefixCls;
+  };
+  globalConfigForApi.getRootPrefixCls = (rootPrefixCls?: string, customizePrefixCls?: string) => {
+    // Customize rootPrefixCls is first priority
+    if (rootPrefixCls) {
+      return rootPrefixCls;
+    }
 
-export interface ConfigConsumerProps {
-  getTargetContainer?: () => HTMLElement;
-  getPopupContainer?: (triggerNode: HTMLElement) => HTMLElement;
-  rootPrefixCls?: string;
-  getPrefixCls: (suffixCls?: string, customizePrefixCls?: string) => string;
-  renderEmpty: RenderEmptyHandler;
-  transformCellText?: (tableProps: TransformCellTextProps) => any;
-  csp?: CSPConfig;
-  autoInsertSpaceInButton?: boolean;
-  input?: {
-    autoComplete?: string;
-  };
-  locale?: Locale;
-  pageHeader?: {
-    ghost: boolean;
-  };
-  direction?: 'ltr' | 'rtl';
-  space?: {
-    size?: SizeType | number;
-  };
-  virtual?: boolean;
-  dropdownMatchSelectWidth?: boolean;
-}
+    // If Global prefixCls provided, use this
+    if (globalConfigForApi.prefixCls) {
+      return globalConfigForApi.prefixCls;
+    }
 
-export const configConsumerProps = [
-  'getTargetContainer',
-  'getPopupContainer',
-  'rootPrefixCls',
-  'getPrefixCls',
-  'renderEmpty',
-  'csp',
-  'autoInsertSpaceInButton',
-  'locale',
-  'pageHeader',
-];
+    // [Legacy] If customize prefixCls provided, we cut it to get the prefixCls
+    if (customizePrefixCls && customizePrefixCls.includes('-')) {
+      return customizePrefixCls.replace(/^(.*)-[^-]*$/, '$1');
+    }
 
-export interface ConfigProviderProps {
-  getTargetContainer?: () => HTMLElement;
-  getPopupContainer?: (triggerNode: HTMLElement) => HTMLElement;
-  prefixCls?: string;
-  children?: VNodeTypes;
-  renderEmpty?: RenderEmptyHandler;
-  transformCellText?: (tableProps: TransformCellTextProps) => any;
-  csp?: CSPConfig;
-  autoInsertSpaceInButton?: boolean;
-  input?: {
-    autoComplete?: string;
+    // Fallback to default prefixCls
+    return getGlobalPrefixCls();
   };
-  locale?: Locale;
-  pageHeader?: {
-    ghost: boolean;
-  };
-  componentSize?: SizeType;
-  direction?: 'ltr' | 'rtl';
-  space?: {
-    size?: SizeType | number;
-  };
-  virtual?: boolean;
-  dropdownMatchSelectWidth?: boolean;
-}
+});
+
+type GlobalConfigProviderProps = {
+  prefixCls?: MaybeRef<ConfigProviderProps['prefixCls']>;
+};
+
+let stopWatchEffect: WatchStopHandle;
+const setGlobalConfig = (params: GlobalConfigProviderProps & { theme?: Theme }) => {
+  if (stopWatchEffect) {
+    stopWatchEffect();
+  }
+  stopWatchEffect = watchEffect(() => {
+    Object.assign(globalConfigBySet, reactive(params));
+  });
+  if (params.theme) {
+    registerTheme(getGlobalPrefixCls(), params.theme);
+  }
+};
+
+export const globalConfig = () => ({
+  getPrefixCls: (suffixCls?: string, customizePrefixCls?: string) => {
+    if (customizePrefixCls) return customizePrefixCls;
+    return suffixCls ? `${getGlobalPrefixCls()}-${suffixCls}` : getGlobalPrefixCls();
+  },
+  getRootPrefixCls: (rootPrefixCls?: string, customizePrefixCls?: string) => {
+    // Customize rootPrefixCls is first priority
+    if (rootPrefixCls) {
+      return rootPrefixCls;
+    }
+
+    // If Global prefixCls provided, use this
+    if (globalConfigForApi.prefixCls) {
+      return globalConfigForApi.prefixCls;
+    }
+
+    // [Legacy] If customize prefixCls provided, we cut it to get the prefixCls
+    if (customizePrefixCls && customizePrefixCls.includes('-')) {
+      return customizePrefixCls.replace(/^(.*)-[^-]*$/, '$1');
+    }
+
+    // Fallback to default prefixCls
+    return getGlobalPrefixCls();
+  },
+});
 
 const ConfigProvider = defineComponent({
   name: 'AConfigProvider',
-  props: {
-    getTargetContainer: {
-      type: Function as PropType<() => HTMLElement>,
-    },
-    getPopupContainer: {
-      type: Function as PropType<(triggerNode: HTMLElement) => HTMLElement>,
-    },
-    prefixCls: String,
-    getPrefixCls: {
-      type: Function as PropType<(suffixCls?: string, customizePrefixCls?: string) => string>,
-    },
-    renderEmpty: {
-      type: Function as PropType<RenderEmptyHandler>,
-    },
-    transformCellText: {
-      type: Function as PropType<(tableProps: TransformCellTextProps) => any>,
-    },
-    csp: {
-      type: Object as PropType<CSPConfig>,
-    },
-    autoInsertSpaceInButton: PropTypes.looseBool,
-    locale: {
-      type: Object as PropType<Locale>,
-    },
-    pageHeader: {
-      type: Object as PropType<{ ghost: boolean }>,
-    },
-    componentSize: {
-      type: Object as PropType<SizeType>,
-    },
-    direction: {
-      type: String as PropType<'ltr' | 'rtl'>,
-    },
-    space: {
-      type: [String, Number] as PropType<SizeType | number>,
-    },
-    virtual: PropTypes.looseBool,
-    dropdownMatchSelectWidth: PropTypes.looseBool,
-  },
+  inheritAttrs: false,
+  props: configProviderProps(),
   setup(props, { slots }) {
     const getPrefixCls = (suffixCls?: string, customizePrefixCls?: string) => {
       const { prefixCls = 'ant' } = props;
@@ -145,11 +136,36 @@ const ConfigProvider = defineComponent({
       getPrefixCls: getPrefixClsWrapper,
       renderEmpty: renderEmptyComponent,
     });
-
-    watch(props, () => {
-      Object.assign(configProvider, props);
+    Object.keys(props).forEach(key => {
+      watch(
+        () => props[key],
+        () => {
+          configProvider[key] = props[key];
+        },
+      );
     });
+    if (!props.notUpdateGlobalConfig) {
+      Object.assign(globalConfigByCom, configProvider);
+      watch(configProvider, () => {
+        Object.assign(globalConfigByCom, configProvider);
+      });
+    }
+    const validateMessagesRef = computed(() => {
+      // Additional Form provider
+      let validateMessages: ValidateMessages = {};
 
+      if (props.locale) {
+        validateMessages =
+          props.locale.Form?.defaultValidateMessages ||
+          defaultLocale.Form?.defaultValidateMessages ||
+          {};
+      }
+      if (props.form && props.form.validateMessages) {
+        validateMessages = { ...validateMessages, ...props.form.validateMessages };
+      }
+      return validateMessages;
+    });
+    useProvideGlobalForm({ validateMessages: validateMessagesRef });
     provide('configProvider', configProvider);
 
     const renderProvider = (legacyLocale: Locale) => {
@@ -160,18 +176,38 @@ const ConfigProvider = defineComponent({
       );
     };
 
+    watchEffect(() => {
+      if (props.direction) {
+        message.config({
+          rtl: props.direction === 'rtl',
+        });
+        notification.config({
+          rtl: props.direction === 'rtl',
+        });
+      }
+    });
+
     return () => (
       <LocaleReceiver children={(_, __, legacyLocale) => renderProvider(legacyLocale as Locale)} />
     );
   },
 });
 
-export const defaultConfigProvider: ConfigConsumerProps = {
+export const defaultConfigProvider: UnwrapRef<ConfigProviderProps> = reactive({
   getPrefixCls: (suffixCls: string, customizePrefixCls?: string) => {
     if (customizePrefixCls) return customizePrefixCls;
-    return `ant-${suffixCls}`;
+    return suffixCls ? `ant-${suffixCls}` : 'ant';
   },
   renderEmpty: defaultRenderEmpty,
+  direction: 'ltr',
+});
+
+ConfigProvider.config = setGlobalConfig;
+ConfigProvider.install = function (app: App) {
+  app.component(ConfigProvider.name, ConfigProvider);
 };
 
-export default withInstall(ConfigProvider);
+export default ConfigProvider as typeof ConfigProvider &
+  Plugin & {
+    readonly config: typeof setGlobalConfig;
+  };

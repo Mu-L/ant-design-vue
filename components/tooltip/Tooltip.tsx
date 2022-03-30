@@ -1,20 +1,31 @@
-import { defineComponent, ExtractPropTypes, inject, CSSProperties } from 'vue';
+import type { ExtractPropTypes, CSSProperties } from 'vue';
+import { computed, watch, defineComponent, onMounted, ref } from 'vue';
 import VcTooltip from '../vc-tooltip';
 import classNames from '../_util/classNames';
-import getPlacements from './placements';
 import PropTypes from '../_util/vue-types';
 import { PresetColorTypes } from '../_util/colors';
-import {
-  hasProp,
-  getComponent,
-  getStyle,
-  filterEmpty,
-  getSlot,
-  isValidElement,
-} from '../_util/props-util';
+import warning from '../_util/warning';
+import { getStyle, filterEmpty, isValidElement, initDefaultProps } from '../_util/props-util';
 import { cloneElement } from '../_util/vnode';
-import { defaultConfigProvider } from '../config-provider';
+export type { TriggerType, TooltipPlacement } from './abstractTooltipProps';
 import abstractTooltipProps from './abstractTooltipProps';
+import useConfigInject from '../_util/hooks/useConfigInject';
+import getPlacements from './placements';
+import firstNotUndefined from '../_util/firstNotUndefined';
+import raf from '../_util/raf';
+export type { AdjustOverflow, PlacementsConfig } from './placements';
+
+// https://github.com/react-component/tooltip
+// https://github.com/yiminghe/dom-align
+export interface TooltipAlignConfig {
+  points?: [string, string];
+  offset?: [number | string, number | string];
+  targetOffset?: [number | string, number | string];
+  overflow?: { adjustX: boolean; adjustY: boolean };
+  useCssRight?: boolean;
+  useCssBottom?: boolean;
+  useCssTransform?: boolean;
+}
 
 const splitObject = (obj: any, keys: string[]) => {
   const picked = {};
@@ -27,127 +38,155 @@ const splitObject = (obj: any, keys: string[]) => {
   });
   return { picked, omitted };
 };
-const props = abstractTooltipProps();
 
 const PresetColorRegex = new RegExp(`^(${PresetColorTypes.join('|')})(-inverse)?$`);
 
-const tooltipProps = {
-  ...props,
-  title: PropTypes.VNodeChild,
-};
+export const tooltipProps = () => ({
+  ...abstractTooltipProps(),
+  title: PropTypes.any,
+});
 
-export type TooltipProps = Partial<ExtractPropTypes<typeof tooltipProps>>;
+export const tooltipDefaultProps = () => ({
+  trigger: 'hover',
+  transitionName: 'zoom-big-fast',
+  align: {},
+  placement: 'top',
+  mouseEnterDelay: 0.1,
+  mouseLeaveDelay: 0.1,
+  arrowPointAtCenter: false,
+  autoAdjustOverflow: true,
+});
+
+export type TooltipProps = Partial<ExtractPropTypes<ReturnType<typeof tooltipProps>>>;
 
 export default defineComponent({
   name: 'ATooltip',
   inheritAttrs: false,
-  props: tooltipProps,
-  emits: ['update:visible', 'visibleChange'],
-  setup() {
-    return {
-      configProvider: inject('configProvider', defaultConfigProvider),
-    };
-  },
-  data() {
-    return {
-      sVisible: !!this.$props.visible || !!this.$props.defaultVisible,
-    };
-  },
-  watch: {
-    visible(val) {
-      this.sVisible = val;
-    },
-  },
-  methods: {
-    handleVisibleChange(visible: boolean) {
-      if (!hasProp(this, 'visible')) {
-        this.sVisible = this.isNoTitle() ? false : visible;
-      }
-      if (!this.isNoTitle()) {
-        this.$emit('update:visible', visible);
-        this.$emit('visibleChange', visible);
-      }
-    },
+  props: initDefaultProps(tooltipProps(), {
+    trigger: 'hover',
+    transitionName: 'zoom-big-fast',
+    align: {},
+    placement: 'top',
+    mouseEnterDelay: 0.1,
+    mouseLeaveDelay: 0.1,
+    arrowPointAtCenter: false,
+    autoAdjustOverflow: true,
+  }),
+  slots: ['title'],
+  // emits: ['update:visible', 'visibleChange'],
+  setup(props, { slots, emit, attrs, expose }) {
+    const { prefixCls, getTargetContainer } = useConfigInject('tooltip', props);
 
-    getPopupDomNode() {
-      return (this.$refs.tooltip as any).getPopupDomNode();
-    },
+    const visible = ref(firstNotUndefined([props.visible, props.defaultVisible]));
 
-    getPlacements() {
-      const { builtinPlacements, arrowPointAtCenter, autoAdjustOverflow } = this.$props;
+    const tooltip = ref();
+
+    onMounted(() => {
+      warning(
+        props.defaultVisible === undefined,
+        'Tooltip',
+        `'defaultVisible' is deprecated, please use 'v-model:visible'`,
+      );
+    });
+    let rafId: any;
+    watch(
+      () => props.visible,
+      val => {
+        raf.cancel(rafId);
+        rafId = raf(() => {
+          visible.value = !!val;
+        });
+      },
+    );
+    const isNoTitle = () => {
+      const title = props.title ?? slots.title;
+      return !title && title !== 0;
+    };
+
+    const handleVisibleChange = (val: boolean) => {
+      const noTitle = isNoTitle();
+      if (props.visible === undefined) {
+        visible.value = noTitle ? false : val;
+      }
+      if (!noTitle) {
+        emit('update:visible', val);
+        emit('visibleChange', val);
+      }
+    };
+
+    const getPopupDomNode = () => {
+      return tooltip.value.getPopupDomNode();
+    };
+
+    expose({ getPopupDomNode, visible, forcePopupAlign: () => tooltip.value?.forcePopupAlign() });
+
+    const tooltipPlacements = computed(() => {
+      const { builtinPlacements, arrowPointAtCenter, autoAdjustOverflow } = props;
       return (
         builtinPlacements ||
         getPlacements({
           arrowPointAtCenter,
-          verticalArrowShift: 8,
           autoAdjustOverflow,
         })
       );
-    },
-
-    // Fix Tooltip won't hide at disabled button
-    // mouse events don't trigger at disabled button in Chrome
-    // https://github.com/react-component/tooltip/issues/18
-    getDisabledCompatibleChildren(ele: any) {
-      if (
-        ((typeof ele.type === 'object' &&
-          (ele.type.__ANT_BUTTON === true ||
-            ele.type.__ANT_SWITCH === true ||
-            ele.type.__ANT_CHECKBOX === true)) ||
-          ele.type === 'button') &&
-        ele.props &&
-        (ele.props.disabled || ele.props.disabled === '')
-      ) {
-        // Pick some layout related style properties up to span
-        // Prevent layout bugs like https://github.com/ant-design/ant-design/issues/5254
-        const { picked, omitted } = splitObject(getStyle(ele), [
-          'position',
-          'left',
-          'right',
-          'top',
-          'bottom',
-          'float',
-          'display',
-          'zIndex',
-        ]);
-        const spanStyle = {
-          display: 'inline-block', // default inline-block is important
-          ...picked,
-          cursor: 'not-allowed',
-          width: ele.props && ele.props.block ? '100%' : null,
-        };
-        const buttonStyle = {
-          ...omitted,
-          pointerEvents: 'none',
-        };
-        const child = cloneElement(
-          ele,
-          {
-            style: buttonStyle,
-          },
-          true,
-        );
-        return <span style={spanStyle}>{child}</span>;
+    });
+    const isTrueProps = (val: boolean | '') => {
+      return val || val === '';
+    };
+    const getDisabledCompatibleChildren = (ele: any) => {
+      const elementType = ele.type as any;
+      if (typeof elementType === 'object' && ele.props) {
+        if (
+          ((elementType.__ANT_BUTTON === true || elementType === 'button') &&
+            isTrueProps(ele.props.disabled)) ||
+          (elementType.__ANT_SWITCH === true &&
+            (isTrueProps(ele.props.disabled) || isTrueProps(ele.props.loading)))
+        ) {
+          // Pick some layout related style properties up to span
+          // Prevent layout bugs like https://github.com/ant-design/ant-design/issues/5254
+          const { picked, omitted } = splitObject(getStyle(ele), [
+            'position',
+            'left',
+            'right',
+            'top',
+            'bottom',
+            'float',
+            'display',
+            'zIndex',
+          ]);
+          const spanStyle = {
+            display: 'inline-block', // default inline-block is important
+            ...picked,
+            cursor: 'not-allowed',
+            width: ele.props && ele.props.block ? '100%' : null,
+          };
+          const buttonStyle = {
+            ...omitted,
+            pointerEvents: 'none',
+          };
+          const child = cloneElement(
+            ele,
+            {
+              style: buttonStyle,
+            },
+            true,
+          );
+          return (
+            <span style={spanStyle} class={`${prefixCls}-disabled-compatible-wrapper`}>
+              {child}
+            </span>
+          );
+        }
       }
       return ele;
-    },
+    };
 
-    isNoTitle() {
-      const title = getComponent(this, 'title');
-      return !title && title !== 0;
-    },
+    const getOverlay = () => {
+      return props.title ?? slots.title?.();
+    };
 
-    getOverlay() {
-      const title = getComponent(this, 'title');
-      if (title === 0) {
-        return title;
-      }
-      return title || '';
-    },
-
-    // 动态设置动画点
-    onPopupAlign(domNode: HTMLElement, align: any) {
-      const placements = this.getPlacements();
+    const onPopupAlign = (domNode: HTMLElement, align: any) => {
+      const placements = tooltipPlacements.value;
       // 当前返回的位置
       const placement = Object.keys(placements).filter(
         key =>
@@ -174,67 +213,64 @@ export default defineComponent({
         transformOrigin.left = `${-align.offset[0]}px`;
       }
       domNode.style.transformOrigin = `${transformOrigin.left} ${transformOrigin.top}`;
-    },
-  },
-
-  render() {
-    const { $props, $data, $attrs } = this;
-    const {
-      prefixCls: customizePrefixCls,
-      openClassName,
-      getPopupContainer,
-      color,
-      overlayClassName,
-    } = $props;
-    const { getPopupContainer: getContextPopupContainer } = this.configProvider;
-    const getPrefixCls = this.configProvider.getPrefixCls;
-    const prefixCls = getPrefixCls('tooltip', customizePrefixCls);
-    let children = this.children || filterEmpty(getSlot(this));
-    children = children.length === 1 ? children[0] : children;
-    let sVisible = $data.sVisible;
-    // Hide tooltip when there is no title
-    if (!hasProp(this, 'visible') && this.isNoTitle()) {
-      sVisible = false;
-    }
-    if (!children) {
-      return null;
-    }
-    const child = this.getDisabledCompatibleChildren(
-      isValidElement(children) ? children : <span>{children}</span>,
-    );
-    const childCls = classNames({
-      [openClassName || `${prefixCls}-open`]: sVisible,
-      [child.props && child.props.class]: child.props && child.props.class,
-    });
-    const customOverlayClassName = classNames(overlayClassName, {
-      [`${prefixCls}-${color}`]: color && PresetColorRegex.test(color),
-    });
-    let formattedOverlayInnerStyle: CSSProperties;
-    let arrowContentStyle: CSSProperties;
-    if (color && !PresetColorRegex.test(color)) {
-      formattedOverlayInnerStyle = { backgroundColor: color };
-      arrowContentStyle = { backgroundColor: color };
-    }
-
-    const vcTooltipProps = {
-      ...$attrs,
-      ...$props,
-      prefixCls,
-      getTooltipContainer: getPopupContainer || getContextPopupContainer,
-      builtinPlacements: this.getPlacements(),
-      overlay: this.getOverlay(),
-      visible: sVisible,
-      ref: 'tooltip',
-      overlayClassName: customOverlayClassName,
-      overlayInnerStyle: formattedOverlayInnerStyle,
-      arrowContent: <span class={`${prefixCls}-arrow-content`} style={arrowContentStyle}></span>,
-      onVisibleChange: this.handleVisibleChange,
-      onPopupAlign: this.onPopupAlign,
     };
-    return (
-      <VcTooltip {...vcTooltipProps}>
-        {sVisible ? cloneElement(child, { class: childCls }) : child}
-      </VcTooltip>
-    );
+
+    return () => {
+      const { openClassName, getPopupContainer, color, overlayClassName } = props;
+      let children = filterEmpty(slots.default?.()) ?? null;
+      children = children.length === 1 ? children[0] : children;
+
+      let tempVisible = visible.value;
+      // Hide tooltip when there is no title
+      if (props.visible === undefined && isNoTitle()) {
+        tempVisible = false;
+      }
+      if (!children) {
+        return null;
+      }
+      const child = getDisabledCompatibleChildren(
+        isValidElement(children) ? children : <span>{children}</span>,
+      );
+      const childCls = classNames({
+        [openClassName || `${prefixCls.value}-open`]: true,
+        [child.props && child.props.class]: child.props && child.props.class,
+      });
+      const customOverlayClassName = classNames(overlayClassName, {
+        [`${prefixCls.value}-${color}`]: color && PresetColorRegex.test(color),
+      });
+      let formattedOverlayInnerStyle: CSSProperties;
+      let arrowContentStyle: CSSProperties;
+      if (color && !PresetColorRegex.test(color)) {
+        formattedOverlayInnerStyle = { backgroundColor: color };
+        arrowContentStyle = { backgroundColor: color };
+      }
+
+      const vcTooltipProps = {
+        ...attrs,
+        ...(props as TooltipProps),
+        prefixCls: prefixCls.value,
+        getTooltipContainer: getPopupContainer || getTargetContainer.value,
+        builtinPlacements: tooltipPlacements.value,
+        visible: tempVisible,
+        ref: tooltip,
+        overlayClassName: customOverlayClassName,
+        overlayInnerStyle: formattedOverlayInnerStyle,
+        onVisibleChange: handleVisibleChange,
+        onPopupAlign,
+      };
+      return (
+        <VcTooltip
+          {...vcTooltipProps}
+          v-slots={{
+            arrowContent: () => (
+              <span class={`${prefixCls.value}-arrow-content`} style={arrowContentStyle}></span>
+            ),
+            overlay: getOverlay,
+          }}
+        >
+          {visible.value ? cloneElement(child, { class: childCls }) : child}
+        </VcTooltip>
+      );
+    };
   },
 });

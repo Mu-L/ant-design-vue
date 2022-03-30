@@ -1,48 +1,61 @@
-import {
-  inject,
-  ref,
+import type {
+  Ref,
   App,
-  defineComponent,
   PropType,
   VNode,
   HTMLAttributes,
   ExtractPropTypes,
-  onMounted,
-  onBeforeUnmount,
   Plugin,
+  CSSProperties,
+  InjectionKey,
+} from 'vue';
+import {
+  onBeforeMount,
+  ref,
+  defineComponent,
+  onBeforeUnmount,
+  provide,
+  toRef,
+  computed,
 } from 'vue';
 import warning from '../_util/warning';
-import ResponsiveObserve, {
-  Breakpoint,
-  responsiveArray,
-  ScreenMap,
-} from '../_util/responsiveObserve';
-import { defaultConfigProvider } from '../config-provider';
+import type { Breakpoint, ScreenMap } from '../_util/responsiveObserve';
+import ResponsiveObserve, { responsiveArray } from '../_util/responsiveObserve';
 import Row from './Row';
 import PropTypes from '../_util/vue-types';
-import { tuple } from '../_util/type';
 import { cloneElement } from '../_util/vnode';
-import { filterEmpty } from '../_util/props-util';
+import { flattenChildren } from '../_util/props-util';
+import useConfigInject from '../_util/hooks/useConfigInject';
 
 export const DescriptionsItemProps = {
-  prefixCls: PropTypes.string,
+  prefixCls: String,
   label: PropTypes.any,
-  span: PropTypes.number,
+  span: Number,
 };
+
+const descriptionsItemProp = () => ({
+  prefixCls: String,
+  label: PropTypes.any,
+  labelStyle: { type: Object as PropType<CSSProperties>, default: undefined as CSSProperties },
+  contentStyle: { type: Object as PropType<CSSProperties>, default: undefined as CSSProperties },
+  span: { type: Number, default: 1 },
+});
+
+export type DescriptionsItemProp = Partial<
+  ExtractPropTypes<ReturnType<typeof descriptionsItemProp>>
+>;
 
 export const DescriptionsItem = defineComponent({
   name: 'ADescriptionsItem',
-  props: {
-    prefixCls: PropTypes.string,
-    label: PropTypes.VNodeChild,
-    span: PropTypes.number.def(1),
-  },
-  render() {
-    return null;
+  props: descriptionsItemProp(),
+  slots: ['label'],
+  setup(_, { slots }) {
+    return () => slots.default?.();
   },
 });
 
 const DEFAULT_COLUMN_MAP: Partial<Record<Breakpoint, number>> = {
+  xxxl: 3,
   xxl: 3,
   xl: 3,
   lg: 3,
@@ -75,7 +88,6 @@ function getFilledItem(node: VNode, span: number | undefined, rowRestCol: number
     clone = cloneElement(node, {
       span: rowRestCol,
     });
-
     warning(
       span === undefined,
       'Descriptions',
@@ -87,12 +99,11 @@ function getFilledItem(node: VNode, span: number | undefined, rowRestCol: number
 }
 
 function getRows(children: VNode[], column: number) {
-  const childNodes = filterEmpty(children);
+  const childNodes = flattenChildren(children);
   const rows: VNode[][] = [];
 
   let tmpRow: VNode[] = [];
   let rowRestCol = column;
-
   childNodes.forEach((node, index) => {
     const span: number | undefined = node.props?.span;
     const mergedSpan = span || 1;
@@ -118,39 +129,47 @@ function getRows(children: VNode[], column: number) {
   return rows;
 }
 
-const descriptionsProps = {
-  prefixCls: PropTypes.string,
-  bordered: PropTypes.looseBool,
-  size: PropTypes.oneOf(tuple('default', 'middle', 'small')).def('default'),
-  title: PropTypes.VNodeChild,
-  extra: PropTypes.VNodeChild,
+export const descriptionsProps = () => ({
+  prefixCls: String,
+  bordered: { type: Boolean, default: undefined },
+  size: { type: String as PropType<'default' | 'middle' | 'small'>, default: 'default' },
+  title: PropTypes.any,
+  extra: PropTypes.any,
   column: {
     type: [Number, Object] as PropType<number | Partial<Record<Breakpoint, number>>>,
-    default: () => DEFAULT_COLUMN_MAP,
+    default: (): number | Partial<Record<Breakpoint, number>> => DEFAULT_COLUMN_MAP,
   },
-  layout: PropTypes.oneOf(tuple('horizontal', 'vertical')),
-  colon: PropTypes.looseBool,
-};
+  layout: String as PropType<'horizontal' | 'vertical'>,
+  colon: { type: Boolean, default: undefined },
+  labelStyle: { type: Object as PropType<CSSProperties>, default: undefined as CSSProperties },
+  contentStyle: { type: Object as PropType<CSSProperties>, default: undefined as CSSProperties },
+});
 
 export type DescriptionsProps = HTMLAttributes &
-  Partial<ExtractPropTypes<typeof descriptionsProps>>;
+  Partial<ExtractPropTypes<ReturnType<typeof descriptionsProps>>>;
 
-const Descriptions = defineComponent<DescriptionsProps>({
+export interface DescriptionsContextProp {
+  labelStyle?: Ref<CSSProperties>;
+  contentStyle?: Ref<CSSProperties>;
+}
+
+export const descriptionsContext: InjectionKey<DescriptionsContextProp> =
+  Symbol('descriptionsContext');
+
+const Descriptions = defineComponent({
   name: 'ADescriptions',
+  props: descriptionsProps(),
+  slots: ['title', 'extra'],
   Item: DescriptionsItem,
   setup(props, { slots }) {
-    const { getPrefixCls } = inject('configProvider', defaultConfigProvider);
-
+    const { prefixCls, direction } = useConfigInject('descriptions', props);
     let token: number;
-
     const screens = ref<ScreenMap>({});
-
-    onMounted(() => {
+    onBeforeMount(() => {
       token = ResponsiveObserve.subscribe(screen => {
         if (typeof props.column !== 'object') {
           return;
         }
-
         screens.value = screen;
       });
     });
@@ -159,10 +178,15 @@ const Descriptions = defineComponent<DescriptionsProps>({
       ResponsiveObserve.unsubscribe(token);
     });
 
+    provide(descriptionsContext, {
+      labelStyle: toRef(props, 'labelStyle'),
+      contentStyle: toRef(props, 'contentStyle'),
+    });
+
+    const mergeColumn = computed(() => getColumn(props.column, screens.value));
+
     return () => {
       const {
-        prefixCls: customizePrefixCls,
-        column,
         size,
         bordered = false,
         layout = 'horizontal',
@@ -171,28 +195,27 @@ const Descriptions = defineComponent<DescriptionsProps>({
         extra = slots.extra?.(),
       } = props;
 
-      const prefixCls = getPrefixCls('descriptions', customizePrefixCls);
-      const mergeColumn = getColumn(column, screens.value);
       const children = slots.default?.();
-      const rows = getRows(children, mergeColumn);
+      const rows = getRows(children, mergeColumn.value);
 
       return (
         <div
           class={[
-            prefixCls,
+            prefixCls.value,
             {
-              [`${prefixCls}-${size}`]: size !== 'default',
-              [`${prefixCls}-bordered`]: !!bordered,
+              [`${prefixCls.value}-${size}`]: size !== 'default',
+              [`${prefixCls.value}-bordered`]: !!bordered,
+              [`${prefixCls.value}-rtl`]: direction.value === 'rtl',
             },
           ]}
         >
           {(title || extra) && (
-            <div class={`${prefixCls}-header`}>
-              <div class={`${prefixCls}-title`}>{title}</div>
-              <div class={`${prefixCls}-extra`}>{extra}</div>
+            <div class={`${prefixCls.value}-header`}>
+              {title && <div class={`${prefixCls.value}-title`}>{title}</div>}
+              {extra && <div class={`${prefixCls.value}-extra`}>{extra}</div>}
             </div>
           )}
-          <div class={`${prefixCls}-view`}>
+          <div class={`${prefixCls.value}-view`}>
             <table>
               <tbody>
                 {rows.map((row, index) => (
@@ -200,7 +223,7 @@ const Descriptions = defineComponent<DescriptionsProps>({
                     key={index}
                     index={index}
                     colon={colon}
-                    prefixCls={prefixCls}
+                    prefixCls={prefixCls.value}
                     vertical={layout === 'vertical'}
                     bordered={bordered}
                     row={row}
@@ -215,14 +238,11 @@ const Descriptions = defineComponent<DescriptionsProps>({
   },
 });
 
-Descriptions.props = descriptionsProps;
-
-Descriptions.install = function(app: App) {
+Descriptions.install = function (app: App) {
   app.component(Descriptions.name, Descriptions);
   app.component(Descriptions.Item.name, Descriptions.Item);
   return app;
 };
-
 export default Descriptions as typeof Descriptions &
   Plugin & {
     readonly Item: typeof DescriptionsItem;

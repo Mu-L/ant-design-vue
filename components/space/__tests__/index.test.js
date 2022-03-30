@@ -26,7 +26,7 @@ describe('Space', () => {
       },
     });
     expect(wrapper.findAll('.ant-space-item')[0].element.style.marginRight).toBe('10px');
-    expect(wrapper.findAll('.ant-space-item')[1].element.style.marginRight).toBeFalsy();
+    expect(wrapper.findAll('.ant-space-item')[1].element.style.marginRight).toBe('');
   });
 
   it('should render vertical space width customize size', () => {
@@ -40,9 +40,8 @@ describe('Space', () => {
         );
       },
     });
-
     expect(wrapper.findAll('.ant-space-item')[0].element.style.marginBottom).toBe('10px');
-    expect(wrapper.findAll('.ant-space-item')[1].element.style.marginBottom).toBeFalsy();
+    expect(wrapper.findAll('.ant-space-item')[1].element.style.marginBottom).toBe('');
   });
 
   it('should render correct with children', () => {

@@ -1,6 +1,7 @@
-@import './index';
+@import (reference) '../../style/themes/index';
+@select-prefix-cls: ~'@{ant-prefix}-select';
 
-@selection-item-padding: ceil((@font-size-base * 1.25));
+@selection-item-padding: ceil(@font-size-base * 1.25);
 
 .@{select-prefix-cls}-single {
   // ========================= Selector =========================
@@ -39,14 +40,15 @@
     }
 
     .@{select-prefix-cls}-selection-placeholder {
+      transition: none;
       pointer-events: none;
     }
 
     // For common baseline align
     &::after,
-    // For '' value baseline align
+    /* For '' value baseline align */
     .@{select-prefix-cls}-selection-item::after,
-    // For undefined value baseline align
+    /* For undefined value baseline align */
     .@{select-prefix-cls}-selection-placeholder::after {
       display: inline-block;
       width: 0;
@@ -76,10 +78,7 @@
   // Not customize
   &:not(.@{select-prefix-cls}-customize-input) {
     .@{select-prefix-cls}-selector {
-      .select-selector();
-      .select-search-input-without-border();
       width: 100%;
-
       height: @input-height-base;
       padding: 0 @input-padding-horizontal-base;
 

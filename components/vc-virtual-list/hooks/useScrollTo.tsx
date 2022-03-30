@@ -1,20 +1,19 @@
-import { Data } from '../../_util/type';
-import { Ref } from 'vue';
+import type { ShallowRef, Ref } from 'vue';
 import raf from '../../_util/raf';
-import { GetKey } from '../interface';
-import { ListState } from '../List';
+import type { GetKey } from '../interface';
+import type { CacheMap } from './useHeights';
 
 export default function useScrollTo(
   containerRef: Ref<Element | undefined>,
-  state: ListState,
-  heights: Data,
+  mergedData: ShallowRef<any[]>,
+  heights: CacheMap,
   props,
   getKey: GetKey,
   collectHeight: () => void,
   syncScrollTop: (newTop: number) => void,
   triggerFlash: () => void,
 ) {
-  let scroll: number | null = null;
+  let scroll: number;
 
   return (arg?: any) => {
     // When not argument provided, we think dev may want to show the scrollbar
@@ -25,7 +24,7 @@ export default function useScrollTo(
 
     // Normal scroll logic
     raf.cancel(scroll!);
-    const data = state.mergedData;
+    const data = mergedData.value;
     const itemHeight = props.itemHeight;
     if (typeof arg === 'number') {
       syncScrollTop(arg);
@@ -58,10 +57,11 @@ export default function useScrollTo(
           let itemTop = 0;
           let itemBottom = 0;
 
-          for (let i = 0; i <= index; i += 1) {
+          const maxLen = Math.min(data.length, index);
+          for (let i = 0; i <= maxLen; i += 1) {
             const key = getKey(data[i]);
             itemTop = stackTop;
-            const cacheHeight = heights[key!];
+            const cacheHeight = heights.get(key);
             itemBottom = itemTop + (cacheHeight === undefined ? itemHeight : cacheHeight);
 
             stackTop = itemBottom;
@@ -70,7 +70,7 @@ export default function useScrollTo(
               needCollectHeight = true;
             }
           }
-
+          const scrollTop = containerRef.value.scrollTop;
           // Scroll to
           let targetTop: number | null = null;
 
@@ -83,7 +83,6 @@ export default function useScrollTo(
               break;
 
             default: {
-              const { scrollTop } = containerRef.value;
               const scrollBottom = scrollTop + height;
               if (itemTop < scrollTop) {
                 newTargetAlign = 'top';
@@ -93,7 +92,7 @@ export default function useScrollTo(
             }
           }
 
-          if (targetTop !== null && targetTop !== containerRef.value.scrollTop) {
+          if (targetTop !== null && targetTop !== scrollTop) {
             syncScrollTop(targetTop);
           }
         }

@@ -1,32 +1,47 @@
-import { ExtractPropTypes } from 'vue';
+import PropTypes from '../_util/vue-types';
 
-import { tuple } from '../_util/type';
-import PropTypes, { withUndefined } from '../_util/vue-types';
+import type { ExtractPropTypes, PropType } from 'vue';
+import type { SizeType } from '../config-provider';
 
-const ButtonTypes = tuple('default', 'primary', 'ghost', 'dashed', 'danger', 'link');
-export type ButtonType = typeof ButtonTypes[number];
-const ButtonShapes = tuple('circle', 'circle-outline', 'round');
-export type ButtonShape = typeof ButtonShapes[number];
-const ButtonSizes = tuple('large', 'default', 'small');
-export type ButtonSize = typeof ButtonSizes[number];
-const ButtonHTMLTypes = tuple('submit', 'button', 'reset');
-export type ButtonHTMLType = typeof ButtonHTMLTypes[number];
+export type ButtonType = 'link' | 'default' | 'primary' | 'ghost' | 'dashed' | 'text';
+export type ButtonShape = 'default' | 'circle' | 'round';
 
-const buttonProps = () => ({
-  prefixCls: PropTypes.string,
-  type: PropTypes.oneOf(ButtonTypes),
-  htmlType: PropTypes.oneOf(ButtonHTMLTypes).def('button'),
-  // icon: PropTypes.string,
-  shape: PropTypes.oneOf(ButtonShapes),
-  size: PropTypes.oneOf(ButtonSizes).def('default'),
-  loading: withUndefined(PropTypes.oneOfType([PropTypes.looseBool, PropTypes.object])),
-  disabled: PropTypes.looseBool,
-  ghost: PropTypes.looseBool,
-  block: PropTypes.looseBool,
-  icon: PropTypes.VNodeChild,
-  href: PropTypes.string,
-  title: PropTypes.string,
-  onClick: PropTypes.func,
+export type ButtonHTMLType = 'submit' | 'button' | 'reset';
+
+export type LegacyButtonType = ButtonType | 'danger';
+export function convertLegacyProps(type?: LegacyButtonType): ButtonProps {
+  if (type === 'danger') {
+    return { danger: true };
+  }
+  return { type };
+}
+
+export const buttonProps = () => ({
+  prefixCls: String,
+  type: String as PropType<ButtonType>,
+  htmlType: { type: String as PropType<ButtonHTMLType>, default: 'button' },
+  shape: { type: String as PropType<ButtonShape> },
+  size: {
+    type: String as PropType<SizeType>,
+  },
+  loading: {
+    type: [Boolean, Object] as PropType<boolean | { delay?: number }>,
+    default: (): boolean | { delay?: number } => false,
+  },
+  disabled: { type: Boolean, default: undefined },
+  ghost: { type: Boolean, default: undefined },
+  block: { type: Boolean, default: undefined },
+  danger: { type: Boolean, default: undefined },
+  icon: PropTypes.any,
+  href: String,
+  target: String,
+  title: String,
+  onClick: {
+    type: Function as PropType<(event: MouseEvent) => void>,
+  },
+  onMousedown: {
+    type: Function as PropType<(event: MouseEvent) => void>,
+  },
 });
 
 export type ButtonProps = Partial<ExtractPropTypes<ReturnType<typeof buttonProps>>>;

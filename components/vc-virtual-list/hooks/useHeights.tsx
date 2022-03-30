@@ -1,15 +1,22 @@
-import { reactive, VNodeProps } from 'vue';
-import { GetKey } from '../interface';
+import type { VNodeProps, Ref, ShallowRef } from 'vue';
+import { watch, ref } from 'vue';
+import type { GetKey } from '../interface';
 
-type CacheMap = Record<string, number>;
+export type CacheMap = Map<any, number>;
 
 export default function useHeights<T>(
+  mergedData: ShallowRef<any[]>,
   getKey: GetKey<T>,
   onItemAdd?: ((item: T) => void) | null,
   onItemRemove?: ((item: T) => void) | null,
-): [(item: T, instance: HTMLElement) => void, () => void, CacheMap] {
+): [(item: T, instance: HTMLElement) => void, () => void, CacheMap, Ref<Symbol>] {
   const instance = new Map<VNodeProps['key'], HTMLElement>();
-  const heights = reactive({});
+  let heights = new Map();
+  const updatedMark = ref(Symbol('update'));
+  watch(mergedData, () => {
+    heights = new Map();
+    updatedMark.value = Symbol('update');
+  });
   let heightUpdateId = 0;
   function collectHeight() {
     heightUpdateId += 1;
@@ -21,9 +28,10 @@ export default function useHeights<T>(
       instance.forEach((element, key) => {
         if (element && element.offsetParent) {
           const { offsetHeight } = element;
-          if (heights[key!] !== offsetHeight) {
+          if (heights.get(key) !== offsetHeight) {
             //changed = true;
-            heights[key!] = element.offsetHeight;
+            updatedMark.value = Symbol('update');
+            heights.set(key, element.offsetHeight);
           }
         }
       });
@@ -35,7 +43,7 @@ export default function useHeights<T>(
     const origin = instance.get(key);
 
     if (ins) {
-      instance.set(key, ins);
+      instance.set(key, (ins as any).$el || ins);
       collectHeight();
     } else {
       instance.delete(key);
@@ -51,5 +59,5 @@ export default function useHeights<T>(
     }
   }
 
-  return [setInstance, collectHeight, heights];
+  return [setInstance, collectHeight, heights, updatedMark];
 }

@@ -1,9 +1,12 @@
-import { FunctionalComponent, VNodeChild } from 'vue';
+import type { FunctionalComponent, PropType } from 'vue';
+import type { MouseEventHandler } from '../_util/EventInterface';
+import type { VueNode } from '../_util/type';
 import PropTypes from '../_util/vue-types';
+import type { RenderNode } from './BaseSelect';
 
 export interface TransBtnProps {
   class: string;
-  customizeIcon: VNodeChild | ((props?: any) => VNodeChild);
+  customizeIcon: RenderNode;
   customizeIconProps?: any;
   onMousedown?: (payload: MouseEvent) => void;
   onClick?: (payload: MouseEvent) => void;
@@ -15,7 +18,7 @@ export interface TransBtnType extends FunctionalComponent<TransBtnProps> {
 
 const TransBtn: TransBtnType = (props, { slots }) => {
   const { class: className, customizeIcon, customizeIconProps, onMousedown, onClick } = props;
-  let icon: VNodeChild;
+  let icon: VueNode;
 
   if (typeof customizeIcon === 'function') {
     icon = customizeIcon(customizeIconProps);
@@ -54,11 +57,11 @@ const TransBtn: TransBtnType = (props, { slots }) => {
 TransBtn.inheritAttrs = false;
 TransBtn.displayName = 'TransBtn';
 TransBtn.props = {
-  class: PropTypes.string,
+  class: String,
   customizeIcon: PropTypes.any,
   customizeIconProps: PropTypes.any,
-  onMousedown: PropTypes.func,
-  onClick: PropTypes.func,
+  onMousedown: Function as PropType<MouseEventHandler>,
+  onClick: Function as PropType<MouseEventHandler>,
 };
 
 export default TransBtn;

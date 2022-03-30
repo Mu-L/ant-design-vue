@@ -1,216 +1,284 @@
-import { App, defineComponent, inject, Plugin } from 'vue';
-import VcTreeSelect, { TreeNode, SHOW_ALL, SHOW_PARENT, SHOW_CHILD } from '../vc-tree-select';
-import classNames from '../_util/classNames';
-import { TreeSelectProps } from './interface';
-import warning from '../_util/warning';
-import { getOptionProps, getComponent, getSlot } from '../_util/props-util';
-import initDefaultProps from '../_util/props-util/initDefaultProps';
-import { defaultConfigProvider } from '../config-provider';
-
-export { TreeData, TreeSelectProps } from './interface';
-import LoadingOutlined from '@ant-design/icons-vue/LoadingOutlined';
-import CaretDownOutlined from '@ant-design/icons-vue/CaretDownOutlined';
-import DownOutlined from '@ant-design/icons-vue/DownOutlined';
-import CloseOutlined from '@ant-design/icons-vue/CloseOutlined';
-import CloseCircleFilled from '@ant-design/icons-vue/CloseCircleFilled';
-import omit from 'omit.js';
-import { convertChildrenToData } from './utils';
-
-const TreeSelect = defineComponent({
+import type { App, ExtractPropTypes, PropType } from 'vue';
+import { computed, ref, watchEffect, defineComponent } from 'vue';
+import VcTreeSelect, {
   TreeNode,
   SHOW_ALL,
   SHOW_PARENT,
   SHOW_CHILD,
+  treeSelectProps as vcTreeSelectProps,
+} from '../vc-tree-select';
+import classNames from '../_util/classNames';
+import initDefaultProps from '../_util/props-util/initDefaultProps';
+import type { SizeType } from '../config-provider';
+import type { FieldNames, Key } from '../vc-tree-select/interface';
+import omit from '../_util/omit';
+import PropTypes from '../_util/vue-types';
+import useConfigInject from '../_util/hooks/useConfigInject';
+import devWarning from '../vc-util/devWarning';
+import getIcons from '../select/utils/iconUtil';
+import renderSwitcherIcon from '../tree/utils/iconUtil';
+import type { AntTreeNodeProps } from '../tree/Tree';
+import { warning } from '../vc-util/warning';
+import { flattenChildren } from '../_util/props-util';
+import { useInjectFormItemContext } from '../form/FormItemContext';
+import type { BaseSelectRef } from '../vc-select';
+import type { BaseOptionType, DefaultOptionType } from '../vc-tree-select/TreeSelect';
+import type { TreeProps } from '../tree';
+
+const getTransitionName = (rootPrefixCls: string, motion: string, transitionName?: string) => {
+  if (transitionName !== undefined) {
+    return transitionName;
+  }
+  return `${rootPrefixCls}-${motion}`;
+};
+
+type RawValue = string | number;
+
+export interface LabeledValue {
+  key?: string;
+  value: RawValue;
+  label?: any;
+}
+
+export type SelectValue = RawValue | RawValue[] | LabeledValue | LabeledValue[];
+
+export type RefTreeSelectProps = BaseSelectRef;
+
+export function treeSelectProps<
+  ValueType = any,
+  OptionType extends BaseOptionType | DefaultOptionType = DefaultOptionType,
+>() {
+  return {
+    ...omit(vcTreeSelectProps<ValueType, OptionType>(), [
+      'showTreeIcon',
+      'treeMotion',
+      'inputIcon',
+      'getInputElement',
+      'treeLine',
+      'customSlots',
+    ]),
+    suffixIcon: PropTypes.any,
+    size: { type: String as PropType<SizeType> },
+    bordered: { type: Boolean, default: undefined },
+    treeLine: { type: [Boolean, Object] as PropType<TreeProps['showLine']>, default: undefined },
+    replaceFields: { type: Object as PropType<FieldNames> },
+    'onUpdate:value': { type: Function as PropType<(value: any) => void> },
+    'onUpdate:treeExpandedKeys': { type: Function as PropType<(keys: Key[]) => void> },
+    'onUpdate:searchValue': { type: Function as PropType<(value: string) => void> },
+  };
+}
+export type TreeSelectProps = Partial<ExtractPropTypes<ReturnType<typeof treeSelectProps>>>;
+
+const TreeSelect = defineComponent({
   name: 'ATreeSelect',
   inheritAttrs: false,
-  props: initDefaultProps(TreeSelectProps(), {
-    transitionName: 'slide-up',
+  props: initDefaultProps(treeSelectProps(), {
     choiceTransitionName: '',
-    showSearch: false,
+    listHeight: 256,
+    treeIcon: false,
+    listItemHeight: 26,
+    bordered: true,
   }),
-  setup() {
-    return {
-      vcTreeSelect: null,
-      configProvider: inject('configProvider', defaultConfigProvider),
-    };
-  },
-  created() {
+  slots: [
+    'title',
+    'titleRender',
+    'placeholder',
+    'maxTagPlaceholder',
+    'treeIcon',
+    'switcherIcon',
+    'notFoundContent',
+  ],
+  setup(props, { attrs, slots, expose, emit }) {
     warning(
-      this.multiple !== false || !this.treeCheckable,
-      'TreeSelect',
-      '`multiple` will alway be `true` when `treeCheckable` is true',
+      !(props.treeData === undefined && slots.default),
+      '`children` of TreeSelect is deprecated. Please use `treeData` instead.',
     );
-  },
-  methods: {
-    saveTreeSelect(node: any) {
-      this.vcTreeSelect = node;
-    },
-    focus() {
-      this.vcTreeSelect.focus();
-    },
+    watchEffect(() => {
+      devWarning(
+        props.multiple !== false || !props.treeCheckable,
+        'TreeSelect',
+        '`multiple` will always be `true` when `treeCheckable` is true',
+      );
+      devWarning(
+        props.replaceFields === undefined,
+        'TreeSelect',
+        '`replaceFields` is deprecated, please use fieldNames instead',
+      );
+    });
 
-    blur() {
-      this.vcTreeSelect.blur();
-    },
-    renderSwitcherIcon(prefixCls: string, { isLeaf, loading }) {
-      if (loading) {
-        return <LoadingOutlined class={`${prefixCls}-switcher-loading-icon`} />;
-      }
-      if (isLeaf) {
-        return null;
-      }
-      return <CaretDownOutlined class={`${prefixCls}-switcher-icon`} />;
-    },
-    handleChange(...args: any[]) {
-      this.$emit('update:value', args[0]);
-      this.$emit('change', ...args);
-    },
-    handleTreeExpand(...args: any[]) {
-      this.$emit('update:treeExpandedKeys', args[0]);
-      this.$emit('treeExpand', ...args);
-    },
-    handleSearch(...args: any[]) {
-      this.$emit('update:searchValue', args[0]);
-      this.$emit('search', ...args);
-    },
-    updateTreeData(treeData: any[]) {
-      const { $slots } = this;
-      const defaultFields = {
-        children: 'children',
-        title: 'title',
-        key: 'key',
-        label: 'label',
-        value: 'value',
-      };
-      const replaceFields = { ...defaultFields, ...this.$props.replaceFields };
-      return treeData.map(item => {
-        const { slots = {} } = item;
-        const label = item[replaceFields.label];
-        const title = item[replaceFields.title];
-        const value = item[replaceFields.value];
-        const key = item[replaceFields.key];
-        const children = item[replaceFields.children];
-        let newLabel = typeof label === 'function' ? label() : label;
-        let newTitle = typeof title === 'function' ? title() : title;
-        if (!newLabel && slots.label && $slots[slots.label]) {
-          newLabel = <>{$slots.label(item)}</>;
-        }
-        if (!newTitle && slots.title && $slots[slots.title]) {
-          newTitle = <>{$slots.title(item)}</>;
-        }
-        const treeNodeProps = {
-          ...item,
-          title: newTitle || newLabel,
-          value,
-          dataRef: item,
-          key,
-        };
-        if (children) {
-          return { ...treeNodeProps, children: this.updateTreeData(children) };
-        }
-        return treeNodeProps;
-      });
-    },
-  },
-
-  render() {
-    const props: any = getOptionProps(this);
+    const formItemContext = useInjectFormItemContext();
     const {
-      prefixCls: customizePrefixCls,
-      size,
-      dropdownStyle,
-      dropdownClassName,
-      getPopupContainer,
-      ...restProps
-    } = props;
-    const { class: className } = this.$attrs;
-    const { renderEmpty, getPrefixCls } = this.configProvider;
-    const prefixCls = getPrefixCls('select', customizePrefixCls);
-
-    const notFoundContent = getComponent(this, 'notFoundContent');
-    const removeIcon = getComponent(this, 'removeIcon');
-    const clearIcon = getComponent(this, 'clearIcon');
-    const { getPopupContainer: getContextPopupContainer } = this.configProvider;
-    const rest = omit(restProps, [
-      'inputIcon',
-      'removeIcon',
-      'clearIcon',
-      'switcherIcon',
-      'suffixIcon',
-    ]);
-    let suffixIcon = getComponent(this, 'suffixIcon');
-    suffixIcon = Array.isArray(suffixIcon) ? suffixIcon[0] : suffixIcon;
-    let treeData = props.treeData;
-    if (treeData) {
-      treeData = this.updateTreeData(treeData);
-    }
-    const cls = {
-      [`${prefixCls}-lg`]: size === 'large',
-      [`${prefixCls}-sm`]: size === 'small',
-      [className as string]: className,
-    };
-
-    // showSearch: single - false, multiple - true
-    let { showSearch } = restProps;
-    if (!('showSearch' in restProps)) {
-      showSearch = !!(restProps.multiple || restProps.treeCheckable);
-    }
-
-    let checkable = getComponent(this, 'treeCheckable');
-    if (checkable) {
-      checkable = <span class={`${prefixCls}-tree-checkbox-inner`} />;
-    }
-
-    const inputIcon = suffixIcon || <DownOutlined class={`${prefixCls}-arrow-icon`} />;
-
-    const finalRemoveIcon = removeIcon || <CloseOutlined class={`${prefixCls}-remove-icon`} />;
-
-    const finalClearIcon = clearIcon || <CloseCircleFilled class={`${prefixCls}-clear-icon`} />;
-    const VcTreeSelectProps = {
-      ...this.$attrs,
-      switcherIcon: nodeProps => this.renderSwitcherIcon(prefixCls, nodeProps),
-      inputIcon,
-      removeIcon: finalRemoveIcon,
-      clearIcon: finalClearIcon,
-      ...rest,
-      showSearch,
-      getPopupContainer: getPopupContainer || getContextPopupContainer,
-      dropdownClassName: classNames(dropdownClassName, `${prefixCls}-tree-dropdown`),
       prefixCls,
-      dropdownStyle: { maxHeight: '100vh', overflow: 'auto', ...dropdownStyle },
-      treeCheckable: checkable,
-      notFoundContent: notFoundContent || renderEmpty('Select'),
-      class: cls,
-      onChange: this.handleChange,
-      onSearch: this.handleSearch,
-      onTreeExpand: this.handleTreeExpand,
-      ref: this.saveTreeSelect,
-      treeData: treeData ? treeData : convertChildrenToData(getSlot(this)),
-    };
-    return (
-      <VcTreeSelect
-        {...VcTreeSelectProps}
-        v-slots={omit(this.$slots, ['default'])}
-        __propsSymbol__={[]}
-      />
+      renderEmpty,
+      direction,
+      virtual,
+      dropdownMatchSelectWidth,
+      size,
+      getPopupContainer,
+      getPrefixCls,
+    } = useConfigInject('select', props);
+    const rootPrefixCls = computed(() => getPrefixCls());
+    const transitionName = computed(() =>
+      getTransitionName(rootPrefixCls.value, 'slide-up', props.transitionName),
     );
+    const choiceTransitionName = computed(() =>
+      getTransitionName(rootPrefixCls.value, '', props.choiceTransitionName),
+    );
+    const treePrefixCls = computed(() => getPrefixCls('select-tree', props.prefixCls));
+    const treeSelectPrefixCls = computed(() => getPrefixCls('tree-select', props.prefixCls));
+
+    const mergedDropdownClassName = computed(() =>
+      classNames(props.dropdownClassName, `${treeSelectPrefixCls.value}-dropdown`, {
+        [`${treeSelectPrefixCls.value}-dropdown-rtl`]: direction.value === 'rtl',
+      }),
+    );
+
+    const isMultiple = computed(() => !!(props.treeCheckable || props.multiple));
+
+    const treeSelectRef = ref();
+    expose({
+      focus() {
+        treeSelectRef.value.focus?.();
+      },
+
+      blur() {
+        treeSelectRef.value.blur?.();
+      },
+    });
+
+    const handleChange: TreeSelectProps['onChange'] = (...args: any[]) => {
+      emit('update:value', args[0]);
+      emit('change', ...args);
+      formItemContext.onFieldChange();
+    };
+    const handleTreeExpand: TreeSelectProps['onTreeExpand'] = (keys: Key[]) => {
+      emit('update:treeExpandedKeys', keys);
+      emit('treeExpand', keys);
+    };
+    const handleSearch: TreeSelectProps['onSearch'] = (value: string) => {
+      emit('update:searchValue', value);
+      emit('search', value);
+    };
+    const handleBlur = () => {
+      emit('blur');
+      formItemContext.onFieldBlur();
+    };
+    return () => {
+      const {
+        notFoundContent = slots.notFoundContent?.(),
+        prefixCls: customizePrefixCls,
+        bordered,
+        listHeight,
+        listItemHeight,
+        multiple,
+        treeIcon,
+        treeLine,
+        switcherIcon = slots.switcherIcon?.(),
+        fieldNames = props.replaceFields,
+        id = formItemContext.id.value,
+      } = props;
+      // ===================== Icons =====================
+      const { suffixIcon, removeIcon, clearIcon } = getIcons(
+        {
+          ...props,
+          multiple: isMultiple.value,
+          prefixCls: prefixCls.value,
+        },
+        slots,
+      );
+
+      // ===================== Empty =====================
+      let mergedNotFound;
+      if (notFoundContent !== undefined) {
+        mergedNotFound = notFoundContent;
+      } else {
+        mergedNotFound = renderEmpty.value('Select');
+      }
+      // ==================== Render =====================
+      const selectProps = omit(props as typeof props & { itemIcon: any; switcherIcon: any }, [
+        'suffixIcon',
+        'itemIcon',
+        'removeIcon',
+        'clearIcon',
+        'switcherIcon',
+        'bordered',
+        'onUpdate:value',
+        'onUpdate:treeExpandedKeys',
+        'onUpdate:searchValue',
+      ]);
+
+      const mergedClassName = classNames(
+        !customizePrefixCls && treeSelectPrefixCls.value,
+        {
+          [`${prefixCls.value}-lg`]: size.value === 'large',
+          [`${prefixCls.value}-sm`]: size.value === 'small',
+          [`${prefixCls.value}-rtl`]: direction.value === 'rtl',
+          [`${prefixCls.value}-borderless`]: !bordered,
+        },
+        attrs.class,
+      );
+      const otherProps: any = {};
+      if (props.treeData === undefined && slots.default) {
+        otherProps.children = flattenChildren(slots.default());
+      }
+      return (
+        <VcTreeSelect
+          {...attrs}
+          {...selectProps}
+          virtual={virtual.value}
+          dropdownMatchSelectWidth={dropdownMatchSelectWidth.value}
+          id={id}
+          fieldNames={fieldNames}
+          ref={treeSelectRef}
+          prefixCls={prefixCls.value}
+          class={mergedClassName}
+          listHeight={listHeight}
+          listItemHeight={listItemHeight}
+          treeLine={!!treeLine}
+          inputIcon={suffixIcon}
+          multiple={multiple}
+          removeIcon={removeIcon}
+          clearIcon={clearIcon}
+          switcherIcon={(nodeProps: AntTreeNodeProps) =>
+            renderSwitcherIcon(treePrefixCls.value, switcherIcon, treeLine, nodeProps)
+          }
+          showTreeIcon={treeIcon as any}
+          notFoundContent={mergedNotFound}
+          getPopupContainer={getPopupContainer.value}
+          treeMotion={null}
+          dropdownClassName={mergedDropdownClassName.value}
+          choiceTransitionName={choiceTransitionName.value}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          onSearch={handleSearch}
+          onTreeExpand={handleTreeExpand}
+          v-slots={{
+            ...slots,
+            treeCheckable: () => <span class={`${prefixCls.value}-tree-checkbox-inner`} />,
+          }}
+          {...otherProps}
+          transitionName={transitionName.value}
+          customSlots={{
+            ...slots,
+            treeCheckable: () => <span class={`${prefixCls.value}-tree-checkbox-inner`} />,
+          }}
+          maxTagPlaceholder={props.maxTagPlaceholder || slots.maxTagPlaceholder}
+        />
+      );
+    };
   },
 });
 
 /* istanbul ignore next */
-TreeSelect.install = function(app: App) {
-  app.component(TreeSelect.name, TreeSelect);
-  app.component(TreeSelect.TreeNode.displayName, TreeSelect.TreeNode);
-  return app;
-};
-
-export default TreeSelect as typeof TreeSelect &
-  Plugin & {
-    readonly TreeNode: typeof TreeNode;
-
-    readonly SHOW_ALL: typeof SHOW_ALL;
-
-    readonly SHOW_PARENT: typeof SHOW_PARENT;
-
-    readonly SHOW_CHILD: typeof SHOW_CHILD;
-  };
+export const TreeSelectNode = TreeNode;
+export default Object.assign(TreeSelect, {
+  TreeNode,
+  SHOW_ALL: SHOW_ALL as typeof SHOW_ALL,
+  SHOW_PARENT: SHOW_PARENT as typeof SHOW_PARENT,
+  SHOW_CHILD: SHOW_CHILD as typeof SHOW_CHILD,
+  install: (app: App) => {
+    app.component(TreeSelect.name, TreeSelect);
+    app.component(TreeSelectNode.displayName, TreeSelectNode);
+    return app;
+  },
+});

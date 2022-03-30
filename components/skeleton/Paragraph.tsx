@@ -1,23 +1,23 @@
-import { defineComponent, ExtractPropTypes } from 'vue';
-import PropTypes from '../_util/vue-types';
+import type { ExtractPropTypes, PropType } from 'vue';
+import { defineComponent } from 'vue';
 
-const widthUnit = PropTypes.oneOfType([PropTypes.number, PropTypes.string]);
+type widthUnit = number | string;
+export const skeletonParagraphProps = () => ({
+  prefixCls: String,
+  width: { type: [Number, String, Array] as PropType<widthUnit[] | widthUnit> },
+  rows: Number,
+});
 
-const skeletonParagraphProps = {
-  prefixCls: PropTypes.string,
-  width: PropTypes.oneOfType([widthUnit, PropTypes.arrayOf(widthUnit)]),
-  rows: PropTypes.number,
-};
+export type SkeletonParagraphProps = Partial<
+  ExtractPropTypes<ReturnType<typeof skeletonParagraphProps>>
+>;
 
-export const SkeletonParagraphProps = PropTypes.shape(skeletonParagraphProps);
-
-export type ISkeletonParagraphProps = Partial<ExtractPropTypes<typeof skeletonParagraphProps>>;
-
-const Paragraph = defineComponent({
-  props: skeletonParagraphProps,
-  methods: {
-    getWidth(index: number) {
-      const { width, rows = 2 } = this;
+const SkeletonParagraph = defineComponent({
+  name: 'SkeletonParagraph',
+  props: skeletonParagraphProps(),
+  setup(props) {
+    const getWidth = (index: number) => {
+      const { width, rows = 2 } = props;
       if (Array.isArray(width)) {
         return width[index];
       }
@@ -26,16 +26,18 @@ const Paragraph = defineComponent({
         return width;
       }
       return undefined;
-    },
-  },
-  render() {
-    const { prefixCls, rows } = this.$props;
-    const rowList = [...Array(rows)].map((_, index) => {
-      const width = this.getWidth(index);
-      return <li key={index} style={{ width: typeof width === 'number' ? `${width}px` : width }} />;
-    });
-    return <ul class={prefixCls}>{rowList}</ul>;
+    };
+    return () => {
+      const { prefixCls, rows } = props;
+      const rowList = [...Array(rows)].map((_, index) => {
+        const width = getWidth(index);
+        return (
+          <li key={index} style={{ width: typeof width === 'number' ? `${width}px` : width }} />
+        );
+      });
+      return <ul class={prefixCls}>{rowList}</ul>;
+    };
   },
 });
 
-export default Paragraph;
+export default SkeletonParagraph;

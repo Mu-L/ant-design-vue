@@ -1,154 +1,155 @@
-import { App, defineComponent, inject, provide, Plugin, VNode } from 'vue';
-import Select, { SelectProps } from '../select';
-import Input from '../input';
-import InputElement from './InputElement';
-import PropTypes from '../_util/vue-types';
-import { defaultConfigProvider } from '../config-provider';
-import { getComponent, getOptionProps, isValidElement, getSlot } from '../_util/props-util';
-import Omit from 'omit.js';
+import type { App, VNode, ExtractPropTypes, CSSProperties, PropType } from 'vue';
+import { defineComponent, ref } from 'vue';
+import Select, { selectProps } from '../select';
+import { isValidElement, flattenChildren } from '../_util/props-util';
 import warning from '../_util/warning';
-
-const { Option, OptGroup } = Select;
+import Option from './Option';
+import OptGroup from './OptGroup';
+import omit from '../_util/omit';
+import useConfigInject from '../_util/hooks/useConfigInject';
 
 function isSelectOptionOrSelectOptGroup(child: any): boolean {
   return child?.type?.isSelectOption || child?.type?.isSelectOptGroup;
 }
 
-const AutoCompleteProps = {
-  ...SelectProps(),
-  dataSource: PropTypes.array,
-  dropdownMenuStyle: PropTypes.style,
-  optionLabelProp: PropTypes.string,
-  dropdownMatchSelectWidth: PropTypes.looseBool,
-};
+export const autoCompleteProps = () => ({
+  ...omit(selectProps(), ['loading', 'mode', 'optionLabelProp', 'labelInValue']),
+  dataSource: Array as PropType<{ value: any; text: any }[] | string[]>,
+  dropdownMenuStyle: {
+    type: Object as PropType<CSSProperties>,
+    default: undefined as CSSProperties,
+  },
+  // optionLabelProp: String,
+  dropdownMatchSelectWidth: { type: [Number, Boolean], default: true },
+  prefixCls: String,
+  showSearch: { type: Boolean, default: undefined },
+  transitionName: String,
+  choiceTransitionName: { type: String, default: 'zoom' },
+  autofocus: { type: Boolean, default: undefined },
+  backfill: { type: Boolean, default: undefined },
+  // optionLabelProp: PropTypes.string.def('children'),
+  filterOption: { type: [Boolean, Function], default: false },
+  defaultActiveFirstOption: { type: Boolean, default: true },
+});
+
+export type AutoCompleteProps = Partial<ExtractPropTypes<ReturnType<typeof autoCompleteProps>>>;
+
+export const AutoCompleteOption = Option;
+
+export const AutoCompleteOptGroup = OptGroup;
 
 const AutoComplete = defineComponent({
   name: 'AAutoComplete',
   inheritAttrs: false,
-  props: {
-    ...AutoCompleteProps,
-    prefixCls: PropTypes.string.def('ant-select'),
-    showSearch: PropTypes.looseBool.def(false),
-    transitionName: PropTypes.string.def('slide-up'),
-    choiceTransitionName: PropTypes.string.def('zoom'),
-    autofocus: PropTypes.looseBool,
-    backfill: PropTypes.looseBool,
-    optionLabelProp: PropTypes.string.def('children'),
-    filterOption: PropTypes.oneOfType([PropTypes.looseBool, PropTypes.func]).def(false),
-    defaultActiveFirstOption: PropTypes.looseBool.def(true),
-  },
-  emits: ['change', 'select', 'focus', 'blur'],
-  Option: { ...Option, name: 'AAutoCompleteOption' },
-  OptGroup: { ...OptGroup, name: 'AAutoCompleteOptGroup' },
-  setup(props, { slots }) {
+  props: autoCompleteProps(),
+  // emits: ['change', 'select', 'focus', 'blur'],
+  slots: ['option'],
+  setup(props, { slots, attrs, expose }) {
     warning(
-      !('dataSource' in props || 'dataSource' in slots),
+      !('dataSource' in slots),
       'AutoComplete',
-      '`dataSource` is deprecated, please use `options` instead.',
+      '`dataSource` slot is deprecated, please use props `options` instead.',
     );
-    return {
-      configProvider: inject('configProvider', defaultConfigProvider),
-      popupRef: null,
-      select: null,
+    warning(
+      !('options' in slots),
+      'AutoComplete',
+      '`options` slot is deprecated, please use props `options` instead.',
+    );
+    const selectRef = ref();
+    const getInputElement = () => {
+      const children = flattenChildren(slots.default?.());
+      const element = children.length ? children[0] : undefined;
+      return element;
     };
-  },
-  created() {
-    provide('savePopupRef', this.savePopupRef);
-  },
-  methods: {
-    savePopupRef(ref: VNode) {
-      this.popupRef = ref;
-    },
-    saveSelect(node: VNode) {
-      this.select = node;
-    },
-    getInputElement() {
-      const children = getSlot(this);
-      const element = children.length ? children[0] : <Input lazy={false} />;
-      return <InputElement {...element.props}>{element}</InputElement>;
-    },
 
-    focus() {
-      if (this.select) {
-        this.select.focus();
+    const focus = () => {
+      selectRef.value?.focus();
+    };
+
+    const blur = () => {
+      selectRef.value?.blur();
+    };
+
+    expose({
+      focus,
+      blur,
+    });
+    const { prefixCls } = useConfigInject('select', props);
+    return () => {
+      const { size, dataSource, notFoundContent = slots.notFoundContent?.() } = props;
+      let optionChildren: VNode[];
+      const { class: className } = attrs;
+      const cls = {
+        [className as string]: !!className,
+        [`${prefixCls.value}-lg`]: size === 'large',
+        [`${prefixCls.value}-sm`]: size === 'small',
+        [`${prefixCls.value}-show-search`]: true,
+        [`${prefixCls.value}-auto-complete`]: true,
+      };
+      if (props.options === undefined) {
+        const childArray = slots.dataSource?.() || slots.options?.() || [];
+        if (childArray.length && isSelectOptionOrSelectOptGroup(childArray[0])) {
+          optionChildren = childArray;
+        } else {
+          optionChildren = dataSource
+            ? dataSource.map((item: any) => {
+                if (isValidElement(item)) {
+                  return item;
+                }
+                switch (typeof item) {
+                  case 'string':
+                    return (
+                      <Option key={item} value={item}>
+                        {item}
+                      </Option>
+                    );
+                  case 'object':
+                    return (
+                      <Option key={item.value} value={item.value}>
+                        {item.text}
+                      </Option>
+                    );
+                  default:
+                    throw new Error(
+                      'AutoComplete[dataSource] only supports type `string[] | Object[]`.',
+                    );
+                }
+              })
+            : [];
+        }
       }
-    },
 
-    blur() {
-      if (this.select) {
-        this.select.blur();
-      }
-    },
-  },
-
-  render() {
-    const { size, prefixCls: customizePrefixCls, dataSource } = this;
-    let optionChildren: VNode[];
-    const { getPrefixCls } = this.configProvider;
-    const prefixCls = getPrefixCls('select', customizePrefixCls);
-    const { class: className } = this.$attrs;
-    const cls = {
-      [className as string]: !!className,
-      [`${prefixCls}-lg`]: size === 'large',
-      [`${prefixCls}-sm`]: size === 'small',
-      [`${prefixCls}-show-search`]: true,
-      [`${prefixCls}-auto-complete`]: true,
+      const selectProps = omit(
+        {
+          ...props,
+          ...(attrs as any),
+          mode: Select.SECRET_COMBOBOX_MODE_DO_NOT_USE,
+          // optionLabelProp,
+          getInputElement,
+          notFoundContent,
+          // placeholder: '',
+          class: cls,
+          ref: selectRef,
+        },
+        ['dataSource', 'loading'],
+      );
+      return (
+        <Select {...selectProps} v-slots={omit(slots, ['default', 'dataSource', 'options'])}>
+          {optionChildren}
+        </Select>
+      );
     };
-    const childArray = getSlot(this, 'dataSource');
-    if (childArray.length && isSelectOptionOrSelectOptGroup(childArray[0])) {
-      optionChildren = childArray;
-    } else {
-      optionChildren = dataSource
-        ? dataSource.map((item: any) => {
-            if (isValidElement(item)) {
-              return item;
-            }
-            switch (typeof item) {
-              case 'string':
-                return (
-                  <Option key={item} value={item}>
-                    {item}
-                  </Option>
-                );
-              case 'object':
-                return (
-                  <Option key={item.value} value={item.value}>
-                    {item.text}
-                  </Option>
-                );
-              default:
-                throw new Error(
-                  'AutoComplete[dataSource] only supports type `string[] | Object[]`.',
-                );
-            }
-          })
-        : [];
-    }
-    const selectProps = {
-      ...Omit(getOptionProps(this), ['dataSource', 'optionLabelProp']),
-      ...this.$attrs,
-      mode: Select.SECRET_COMBOBOX_MODE_DO_NOT_USE,
-      // optionLabelProp,
-      getInputElement: this.getInputElement,
-      notFoundContent: getComponent(this, 'notFoundContent'),
-      // placeholder: '',
-      class: cls,
-      ref: this.saveSelect,
-    };
-    return <Select {...selectProps}>{optionChildren}</Select>;
   },
 });
 
 /* istanbul ignore next */
-AutoComplete.install = function(app: App) {
-  app.component(AutoComplete.name, AutoComplete);
-  app.component(AutoComplete.Option.name, AutoComplete.Option);
-  app.component(AutoComplete.OptGroup.name, AutoComplete.OptGroup);
-  return app;
-};
-
-export default AutoComplete as typeof AutoComplete &
-  Plugin & {
-    readonly Option: typeof Option;
-    readonly OptGroup: typeof OptGroup;
-  };
+export default Object.assign(AutoComplete, {
+  Option,
+  OptGroup,
+  install(app: App) {
+    app.component(AutoComplete.name, AutoComplete);
+    app.component(Option.displayName, Option);
+    app.component(OptGroup.displayName, OptGroup);
+    return app;
+  },
+});

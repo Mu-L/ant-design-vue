@@ -1,8 +1,9 @@
-export type Breakpoint = 'xxl' | 'xl' | 'lg' | 'md' | 'sm' | 'xs';
-export type BreakpointMap = Partial<Record<Breakpoint, string>>;
+export type Breakpoint = 'xxxl' | 'xxl' | 'xl' | 'lg' | 'md' | 'sm' | 'xs';
+export type BreakpointMap = Record<Breakpoint, string>;
 export type ScreenMap = Partial<Record<Breakpoint, boolean>>;
+export type ScreenSizeMap = Partial<Record<Breakpoint, number>>;
 
-export const responsiveArray: Breakpoint[] = ['xxl', 'xl', 'lg', 'md', 'sm', 'xs'];
+export const responsiveArray: Breakpoint[] = ['xxxl', 'xxl', 'xl', 'lg', 'md', 'sm', 'xs'];
 
 export const responsiveMap: BreakpointMap = {
   xs: '(max-width: 575px)',
@@ -11,6 +12,7 @@ export const responsiveMap: BreakpointMap = {
   lg: '(min-width: 992px)',
   xl: '(min-width: 1200px)',
   xxl: '(min-width: 1600px)',
+  xxxl: '(min-width: 2000px)',
 };
 
 type SubscribeFunc = (screens: ScreenMap) => void;
@@ -43,7 +45,7 @@ const responsiveObserve = {
   },
   unregister() {
     Object.keys(responsiveMap).forEach((screen: string) => {
-      const matchMediaQuery = responsiveMap[screen]!;
+      const matchMediaQuery = responsiveMap[screen];
       const handler = this.matchHandlers[matchMediaQuery];
       handler?.mql.removeListener(handler?.listener);
     });
@@ -51,7 +53,7 @@ const responsiveObserve = {
   },
   register() {
     Object.keys(responsiveMap).forEach((screen: string) => {
-      const matchMediaQuery = responsiveMap[screen]!;
+      const matchMediaQuery = responsiveMap[screen];
       const listener = ({ matches }: { matches: boolean }) => {
         this.dispatch({
           ...screens,

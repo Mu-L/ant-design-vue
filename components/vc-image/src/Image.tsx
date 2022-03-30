@@ -1,20 +1,12 @@
-import {
-  ImgHTMLAttributes,
-  CSSProperties,
-  ref,
-  watch,
-  defineComponent,
-  computed,
-  onMounted,
-} from 'vue';
-import { isNumber } from 'lodash-es';
-
-import BaseMixin from '../../_util/BaseMixin';
+import type { ImgHTMLAttributes, CSSProperties, PropType } from 'vue';
+import { ref, watch, defineComponent, computed, onMounted } from 'vue';
+import isNumber from 'lodash-es/isNumber';
 import cn from '../../_util/classNames';
 import PropTypes from '../../_util/vue-types';
 import { getOffset } from '../../vc-util/Dom/css';
 
-import Preview, { MouseEventHandler } from './Preview';
+import type { MouseEventHandler } from './Preview';
+import Preview from './Preview';
 
 import PreviewGroup, { context } from './PreviewGroup';
 
@@ -36,23 +28,19 @@ export interface ImagePropsType extends Omit<ImgHTMLAttributes, 'placeholder' | 
   fallback?: string;
   preview?: boolean | ImagePreviewType;
 }
-export const ImageProps = {
-  src: PropTypes.string,
-  wrapperClassName: PropTypes.string,
-  wrapperStyle: PropTypes.style,
-  prefixCls: PropTypes.string,
-  previewPrefixCls: PropTypes.string,
-  placeholder: PropTypes.VNodeChild,
-  fallback: PropTypes.string,
-  preview: PropTypes.oneOfType([
-    PropTypes.looseBool,
-    PropTypes.shape({
-      visible: PropTypes.bool,
-      onVisibleChange: PropTypes.func,
-      getContainer: PropTypes.oneOf([PropTypes.func, PropTypes.bool]),
-    }),
-  ]).def(true),
-};
+export const imageProps = () => ({
+  src: String,
+  wrapperClassName: String,
+  wrapperStyle: { type: Object as PropType<CSSProperties>, default: undefined as CSSProperties },
+  prefixCls: String,
+  previewPrefixCls: String,
+  placeholder: PropTypes.any,
+  fallback: String,
+  preview: {
+    type: [Boolean, Object] as PropType<boolean | ImagePreviewType>,
+    default: true as boolean | ImagePreviewType,
+  },
+});
 type ImageStatus = 'normal' | 'error' | 'loading';
 
 const mergeDefaultValue = <T extends object>(obj: T, defaultValues: object): T => {
@@ -67,9 +55,8 @@ const mergeDefaultValue = <T extends object>(obj: T, defaultValues: object): T =
 let uuid = 0;
 const ImageInternal = defineComponent({
   name: 'Image',
-  mixins: [BaseMixin],
   inheritAttrs: false,
-  props: ImageProps,
+  props: imageProps(),
   emits: ['click'],
   setup(props, { attrs, slots, emit }) {
     const prefixCls = computed(() => props.prefixCls);
@@ -190,15 +177,8 @@ const ImageInternal = defineComponent({
       return l;
     };
     return () => {
-      const {
-        prefixCls,
-        wrapperClassName,
-        fallback,
-        src,
-        preview,
-        placeholder,
-        wrapperStyle,
-      } = props;
+      const { prefixCls, wrapperClassName, fallback, src, preview, placeholder, wrapperStyle } =
+        props;
       const {
         width,
         height,

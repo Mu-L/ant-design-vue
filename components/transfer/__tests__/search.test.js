@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { asyncExpect } from '@/tests/utils';
+import { asyncExpect } from '../../../tests/utils';
 import Search from '../search';
 import Transfer from '../index';
 
@@ -80,7 +80,7 @@ describe('Search', () => {
 
     onSearch.mockReset();
 
-    wrapper.findAll('.ant-transfer-list-search-action')[0].trigger('click');
+    wrapper.findAll('.ant-input-clear-icon')[0].trigger('click');
     expect(onSearch).toBeCalledWith('left', '');
   });
 });

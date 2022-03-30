@@ -1,13 +1,17 @@
-import Omit from 'omit.js';
-import { FunctionalComponent } from 'vue';
+import type { ExtractPropTypes, FunctionalComponent, PropType } from 'vue';
+import omit from '../_util/omit';
 import { tupleNum } from '../_util/type';
-import PropTypes from '../_util/vue-types';
 import warning from '../_util/warning';
-import Base, { baseProps, BlockProps } from './Base';
+import Base, { baseProps } from './Base';
 
 const TITLE_ELE_LIST = tupleNum(1, 2, 3, 4, 5);
 
-export type TitleProps = Omit<BlockProps & { level?: typeof TITLE_ELE_LIST[number] }, 'strong'>;
+export const titleProps = () => ({
+  ...omit(baseProps(), ['component', 'strong']),
+  level: Number as PropType<typeof TITLE_ELE_LIST[number]>,
+});
+
+export type TitleProps = Partial<ExtractPropTypes<ReturnType<typeof titleProps>>>;
 
 const Title: FunctionalComponent<TitleProps> = (props, { slots, attrs }) => {
   const { level = 1, ...restProps } = props;
@@ -30,6 +34,6 @@ const Title: FunctionalComponent<TitleProps> = (props, { slots, attrs }) => {
 
 Title.displayName = 'ATypographyTitle';
 Title.inheritAttrs = false;
-Title.props = Omit({ ...baseProps(), level: PropTypes.number }, ['component', 'strong']);
+Title.props = titleProps();
 
 export default Title;

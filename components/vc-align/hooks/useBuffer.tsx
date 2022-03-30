@@ -1,9 +1,11 @@
-export default (callback: () => boolean, buffer: number) => {
+import type { ComputedRef } from 'vue';
+
+export default (callback: () => boolean, buffer: ComputedRef<number>) => {
   let called = false;
   let timeout = null;
 
   function cancelTrigger() {
-    window.clearTimeout(timeout);
+    clearTimeout(timeout);
   }
 
   function trigger(force?: boolean) {
@@ -15,15 +17,15 @@ export default (callback: () => boolean, buffer: number) => {
 
       called = true;
       cancelTrigger();
-      timeout = window.setTimeout(() => {
+      timeout = setTimeout(() => {
         called = false;
-      }, buffer);
+      }, buffer.value);
     } else {
       cancelTrigger();
-      timeout = window.setTimeout(() => {
+      timeout = setTimeout(() => {
         called = false;
         trigger();
-      }, buffer);
+      }, buffer.value);
     }
   }
 

@@ -1,8 +1,9 @@
 import { mount } from '@vue/test-utils';
+import { h } from 'vue';
 import MockDate from 'mockdate';
 import Descriptions from '..';
 import { resetWarned } from '../../_util/warning';
-import { asyncExpect } from '@/tests/utils';
+import { asyncExpect } from '../../../tests/utils';
 
 describe('Descriptions', () => {
   const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -263,20 +264,26 @@ describe('Descriptions', () => {
   });
 
   it('Descriptions support extra', async () => {
-    const wrapper = mount({
-      render() {
-        return (
-          <Descriptions extra="Edit">
-            <Descriptions.Item label="UserName">Zhou Maomao</Descriptions.Item>
-          </Descriptions>
-        );
+    const wrapper = mount(Descriptions, {
+      props: {
+        extra: 'Edit',
+      },
+      slots: {
+        default: h(
+          Descriptions.Item,
+          {
+            label: 'UserName',
+          },
+          'Zhou Maomao',
+        ),
       },
     });
 
     await asyncExpect(() => {
       expect(wrapper.find('.ant-descriptions-extra').exists()).toBe(true);
-      wrapper.setProps({ extra: undefined });
     });
+
+    wrapper.setProps({ extra: undefined });
 
     await asyncExpect(() => {
       expect(wrapper.find('.ant-descriptions-extra').exists()).toBe(false);

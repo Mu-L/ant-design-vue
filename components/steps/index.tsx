@@ -1,82 +1,142 @@
-import { App, defineComponent, ExtractPropTypes, inject, Plugin } from 'vue';
+import type { App, ExtractPropTypes, PropType } from 'vue';
+import { computed, defineComponent } from 'vue';
 import CloseOutlined from '@ant-design/icons-vue/CloseOutlined';
 import CheckOutlined from '@ant-design/icons-vue/CheckOutlined';
-import PropTypes, { withUndefined } from '../_util/vue-types';
-import { getOptionProps, getComponent, getSlot } from '../_util/props-util';
+import PropTypes from '../_util/vue-types';
 import initDefaultProps from '../_util/props-util/initDefaultProps';
-import VcSteps from '../vc-steps';
-import { defaultConfigProvider } from '../config-provider';
-import { tuple } from '../_util/type';
+import VcSteps, { Step as VcStep } from '../vc-steps';
+import useConfigInject from '../_util/hooks/useConfigInject';
+import useBreakpoint from '../_util/hooks/useBreakpoint';
+import classNames from '../_util/classNames';
+import Progress from '../progress';
+import omit from '../_util/omit';
+import { VcStepProps } from '../vc-steps/Step';
+import type { ProgressDotRender } from '../vc-steps/Steps';
+import type { MouseEventHandler } from '../_util/EventInterface';
 
-const stepsProps = {
-  prefixCls: PropTypes.string,
-  iconPrefix: PropTypes.string,
-  current: PropTypes.number,
-  initial: PropTypes.number,
-  labelPlacement: PropTypes.oneOf(tuple('horizontal', 'vertical')).def('horizontal'),
-  status: PropTypes.oneOf(tuple('wait', 'process', 'finish', 'error')),
-  size: PropTypes.oneOf(tuple('default', 'small')),
-  direction: PropTypes.oneOf(tuple('horizontal', 'vertical')),
-  progressDot: withUndefined(PropTypes.oneOfType([PropTypes.looseBool, PropTypes.func])),
-  type: PropTypes.oneOf(tuple('default', 'navigation')),
-  onChange: PropTypes.func,
-  'onUpdate:current': PropTypes.func,
-};
+export const stepsProps = () => ({
+  prefixCls: String,
+  iconPrefix: String,
+  current: Number,
+  initial: Number,
+  percent: Number,
+  responsive: { type: Boolean, default: undefined },
+  labelPlacement: String as PropType<'horizontal' | 'vertical'>,
+  status: String as PropType<'wait' | 'process' | 'finish' | 'error'>,
+  size: String as PropType<'default' | 'small'>,
+  direction: String as PropType<'horizontal' | 'vertical'>,
+  progressDot: {
+    type: [Boolean, Function] as PropType<boolean | ProgressDotRender>,
+    default: undefined as boolean | ProgressDotRender,
+  },
+  type: String as PropType<'default' | 'navigation'>,
+  onChange: Function as PropType<(current: number) => void>,
+  'onUpdate:current': Function as PropType<(current: number) => void>,
+});
 
-export type StepsProps = Partial<ExtractPropTypes<typeof stepsProps>>;
+export const stepProps = () => ({
+  description: PropTypes.any,
+  icon: PropTypes.any,
+  status: String as PropType<'wait' | 'process' | 'finish' | 'error'>,
+  disabled: { type: Boolean, default: undefined },
+  title: PropTypes.any,
+  subTitle: PropTypes.any,
+  onClick: Function as PropType<MouseEventHandler>,
+});
+
+export type StepsProps = Partial<ExtractPropTypes<ReturnType<typeof stepsProps>>>;
+
+export type StepProps = Partial<ExtractPropTypes<ReturnType<typeof stepProps>>>;
 
 const Steps = defineComponent({
   name: 'ASteps',
   inheritAttrs: false,
-  props: initDefaultProps(stepsProps, {
+  props: initDefaultProps(stepsProps(), {
     current: 0,
+    responsive: true,
+    labelPlacement: 'horizontal',
   }),
-  emits: ['update:current', 'change'],
-  setup() {
-    return {
-      configProvider: inject('configProvider', defaultConfigProvider),
+  slots: ['progressDot'],
+  // emits: ['update:current', 'change'],
+  setup(props, { attrs, slots, emit }) {
+    const { prefixCls, direction: rtlDirection, configProvider } = useConfigInject('steps', props);
+    const screens = useBreakpoint();
+    const direction = computed(() =>
+      props.responsive && screens.value.xs ? 'vertical' : props.direction,
+    );
+    const iconPrefix = computed(() => configProvider.getPrefixCls('', props.iconPrefix));
+    const handleChange = (current: number) => {
+      emit('update:current', current);
+      emit('change', current);
     };
-  },
-  Step: { ...VcSteps.Step, name: 'AStep' },
-  methods: {
-    handleChange(current: number) {
-      this.$emit('update:current', current);
-      this.$emit('change', current);
-    },
-  },
-  render() {
-    const props: StepsProps = { ...getOptionProps(this), ...this.$attrs };
-    const { prefixCls: customizePrefixCls, iconPrefix: customizeIconPrefixCls } = props;
-    const getPrefixCls = this.configProvider.getPrefixCls;
-    const prefixCls = getPrefixCls('steps', customizePrefixCls);
-    const iconPrefix = getPrefixCls('', customizeIconPrefixCls);
-    const progressDot = getComponent(this, 'progressDot', this, false);
-
-    const icons = {
-      finish: <CheckOutlined class={`${prefixCls}-finish-icon`} />,
-      error: <CloseOutlined class={`${prefixCls}-error-icon`} />,
+    const stepIconRender = ({
+      node,
+      status,
+    }: {
+      node: any;
+      index: number;
+      status: string;
+      title: any;
+      description: any;
+    }) => {
+      if (status === 'process' && props.percent !== undefined) {
+        // currently it's hard-coded, since we can't easily read the actually width of icon
+        const progressWidth = props.size === 'small' ? 32 : 40;
+        const iconWithProgress = (
+          <div class={`${prefixCls}-progress-icon`}>
+            <Progress
+              type="circle"
+              percent={props.percent}
+              width={progressWidth}
+              strokeWidth={4}
+              format={() => null}
+            />
+            {node}
+          </div>
+        );
+        return iconWithProgress;
+      }
+      return node;
     };
-    const stepsProps = {
-      icons,
-      iconPrefix,
-      prefixCls,
-      progressDot,
-      ...props,
-      canClick: !!(this.onChange || this['onUpdate:current']),
-      onChange: this.handleChange,
+    return () => {
+      const stepsClassName = classNames(
+        {
+          [`${prefixCls.value}-rtl`]: rtlDirection.value === 'rtl',
+          [`${prefixCls.value}-with-progress`]: props.percent !== undefined,
+        },
+        attrs.class,
+      );
+      const icons = {
+        finish: <CheckOutlined class={`${prefixCls}-finish-icon`} />,
+        error: <CloseOutlined class={`${prefixCls}-error-icon`} />,
+      };
+      return (
+        <VcSteps
+          icons={icons}
+          {...omit(props, ['percent', 'responsive'])}
+          direction={direction.value}
+          prefixCls={prefixCls.value}
+          iconPrefix={iconPrefix.value}
+          class={stepsClassName}
+          onChange={handleChange}
+          v-slots={{ ...slots, stepIcon: stepIconRender }}
+        />
+      );
     };
-    return <VcSteps {...stepsProps}>{getSlot(this)}</VcSteps>;
   },
 });
 
 /* istanbul ignore next */
-Steps.install = function(app: App) {
-  app.component(Steps.name, Steps);
-  app.component(Steps.Step.name, Steps.Step);
-  return app;
-};
-
-export default Steps as typeof Steps &
-  Plugin & {
-    readonly Step: typeof VcSteps.Step;
-  };
+export const Step = defineComponent({
+  ...VcStep,
+  name: 'AStep',
+  props: VcStepProps(),
+});
+export default Object.assign(Steps, {
+  Step,
+  install: (app: App) => {
+    app.component(Steps.name, Steps);
+    app.component(Step.name, Step);
+    return app;
+  },
+});

@@ -1,5 +1,5 @@
-import { PropType } from 'vue';
-import { VueTypeValidableDef, VueTypeDef } from 'vue-types';
+import type { PropType } from 'vue';
+import type { VueTypeValidableDef, VueTypeDef } from 'vue-types';
 
 const initDefaultProps = <T>(
   types: T,
@@ -13,11 +13,17 @@ const initDefaultProps = <T>(
       : any;
   },
 ): T => {
-  const propTypes: T = { ...types } as T;
+  const propTypes: T = { ...types };
   Object.keys(defaultProps).forEach(k => {
     const prop = propTypes[k] as VueTypeValidableDef;
     if (prop) {
-      prop.default = defaultProps[k];
+      if (prop.type || prop.default) {
+        prop.default = defaultProps[k];
+      } else if (prop.def) {
+        prop.def(defaultProps[k]);
+      } else {
+        propTypes[k] = { type: prop, default: defaultProps[k] };
+      }
     } else {
       throw new Error(`not have ${k} prop`);
     }

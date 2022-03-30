@@ -1,22 +1,23 @@
-import { defineComponent, ExtractPropTypes } from 'vue';
-import PropTypes from '../_util/vue-types';
+import type { ExtractPropTypes, PropType } from 'vue';
+import { defineComponent } from 'vue';
 
-const skeletonTitleProps = {
-  prefixCls: PropTypes.string,
-  width: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-};
+export const skeletonTitleProps = () => ({
+  prefixCls: String,
+  width: { type: [Number, String] as PropType<string | number> },
+});
 
-export const SkeletonTitleProps = PropTypes.shape(skeletonTitleProps);
+export type SkeletonTitleProps = Partial<ExtractPropTypes<ReturnType<typeof skeletonTitleProps>>>;
 
-export type ISkeletonTitleProps = Partial<ExtractPropTypes<typeof skeletonTitleProps>>;
-
-const Title = defineComponent({
-  props: skeletonTitleProps,
-  render() {
-    const { prefixCls, width } = this.$props;
-    const zWidth = typeof width === 'number' ? `${width}px` : width;
-    return <h3 class={prefixCls} style={{ width: zWidth }} />;
+const SkeletonTitle = defineComponent({
+  name: 'SkeletonTitle',
+  props: skeletonTitleProps(),
+  setup(props) {
+    return () => {
+      const { prefixCls, width } = props;
+      const zWidth = typeof width === 'number' ? `${width}px` : width;
+      return <h3 class={prefixCls} style={{ width: zWidth }} />;
+    };
   },
 });
 
-export default Title;
+export default SkeletonTitle;

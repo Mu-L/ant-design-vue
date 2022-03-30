@@ -1,4 +1,4 @@
-import { VNodeTypes } from '@vue/runtime-core';
+import type { VNodeTypes } from 'vue';
 import { isFragment } from '../../_util/props-util';
 
 export interface Option {
@@ -12,7 +12,6 @@ export default function toArray(children: any[], option: Option = {}): any[] {
     if ((child === undefined || child === null) && !option.keepEmpty) {
       return;
     }
-    debugger;
     if (Array.isArray(child)) {
       ret = ret.concat(toArray(child));
     } else if (isFragment(child) && child.props) {

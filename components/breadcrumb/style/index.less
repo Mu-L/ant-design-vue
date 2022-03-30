@@ -16,6 +16,7 @@
   a {
     color: @breadcrumb-link-color;
     transition: color 0.3s;
+
     &:hover {
       color: @breadcrumb-link-color-hover;
     }
@@ -23,6 +24,7 @@
 
   & > span:last-child {
     color: @breadcrumb-last-item-color;
+
     a {
       color: @breadcrumb-last-item-color;
     }
@@ -38,7 +40,8 @@
   }
 
   &-link {
-    > .@{iconfont-css-prefix} + span {
+    > .@{iconfont-css-prefix} + span,
+    > .@{iconfont-css-prefix} + a {
       margin-left: 4px;
     }
   }
@@ -49,3 +52,5 @@
     }
   }
 }
+
+@import './rtl';

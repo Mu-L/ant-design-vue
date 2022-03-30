@@ -12,7 +12,7 @@
 
 An enterprise-class UI components based on Ant Design and Vue 3.
 
-![test](https://github.com/vueComponent/ant-design-vue/workflows/test/badge.svg) [![codecov](https://img.shields.io/codecov/c/github/vueComponent/ant-design-vue/master.svg?style=flat-square)](https://codecov.io/gh/vueComponent/ant-design-vue) [![npm package](https://img.shields.io/npm/v/ant-design-vue.svg?style=flat-square)](https://www.npmjs.org/package/ant-design-vue) [![NPM downloads](http://img.shields.io/npm/dm/ant-design-vue.svg?style=flat-square)](http://www.npmtrends.com/ant-design-vue) [![backers](https://opencollective.com/ant-design-vue/backers/badge.svg)](#backers) [![sponsors](https://opencollective.com/ant-design-vue/sponsors/badge.svg)](#sponsors) [![extension-for-VSCode](https://img.shields.io/badge/extension%20for-VSCode-blue.svg?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=ant-design-vue.vscode-ant-design-vue-helper)
+![test](https://github.com/vueComponent/ant-design-vue/workflows/test/badge.svg) [![codecov](https://img.shields.io/codecov/c/github/vueComponent/ant-design-vue/master.svg?style=flat-square)](https://codecov.io/gh/vueComponent/ant-design-vue) [![npm package](https://img.shields.io/npm/v/ant-design-vue.svg?style=flat-square)](https://www.npmjs.org/package/ant-design-vue) [![NPM downloads](http://img.shields.io/npm/dm/ant-design-vue.svg?style=flat-square)](http://www.npmtrends.com/ant-design-vue) [![backers](https://opencollective.com/ant-design-vue/backers/badge.svg)](#backers) [![sponsors](https://opencollective.com/ant-design-vue/sponsors/badge.svg)](#sponsors) [![extension-for-VSCode](https://img.shields.io/badge/extension%20for-VSCode-blue.svg?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=ant-design-vue.vscode-ant-design-vue-helper) [![issues-helper](https://img.shields.io/badge/Issues%20Manage%20By-issues--helper-orange?style=flat-square)](https://github.com/actions-cool/issues-helper)
 
 </div>
 
@@ -28,14 +28,14 @@ An enterprise-class UI components based on Ant Design and Vue 3.
 
 ## 支持环境
 
-- 现代浏览器和 IE11 及以上。1.x 版本支持 IE 9+（需要 [polyfills](https://www.antdv.com/docs/vue/getting-started-cn/#兼容性)）
+- 现代浏览器。1.x 版本支持 IE 9+（需要 [polyfills](https://www.antdv.com/docs/vue/getting-started-cn/#兼容性)）
 - 支持服务端渲染。
 - [Electron](https://electronjs.org/)
 - 支持 Vue 2 和 Vue 3
 
 | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/edge/edge_48x48.png" alt="IE / Edge" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>IE / Edge | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/firefox/firefox_48x48.png" alt="Firefox" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Firefox | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/chrome/chrome_48x48.png" alt="Chrome" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Chrome | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/safari/safari_48x48.png" alt="Safari" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Safari | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/opera/opera_48x48.png" alt="Opera" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Opera | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/electron/electron_48x48.png" alt="Electron" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Electron |
 | --- | --- | --- | --- | --- | --- |
-| IE11, Edge | last 2 versions | last 2 versions | last 2 versions | last 2 versions | last 2 versions |
+| Edge | last 2 versions | last 2 versions | last 2 versions | last 2 versions | last 2 versions |
 
 ## 安装
 
@@ -65,6 +65,7 @@ $ yarn add ant-design-vue
 | [ant-design-vue-helper](https://marketplace.visualstudio.com/items?itemName=ant-design-vue.vscode-ant-design-vue-helper) | ant-design-vue 的 vscode 扩展 |
 | [vue-cli-plugin-ant-design](https://github.com/vueComponent/vue-cli-plugin-ant-design) | 使用 vue-cli3 快速使用 ant-design-vue 组件库 |
 | [vue-dash-event](https://github.com/vueComponent/vue-dash-event) | 在 DOM 模板中，您可以使用 ant-design-vue 组件的自定义事件（camelCase） |
+| [@formily/antdv](https://github.com/formilyjs/antdv) | 这是一个结合了 Formily 和 ant-design-vue 的组件库 |
 
 ## 问答
 

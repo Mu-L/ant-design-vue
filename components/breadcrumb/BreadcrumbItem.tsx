@@ -1,34 +1,39 @@
-import { defineComponent, inject } from 'vue';
+import type { ExtractPropTypes, PropType } from 'vue';
+import { defineComponent } from 'vue';
 import PropTypes from '../_util/vue-types';
-import { hasProp, getComponent, getSlot } from '../_util/props-util';
-import { defaultConfigProvider } from '../config-provider';
+import { getPropsSlot } from '../_util/props-util';
 import DropDown from '../dropdown/dropdown';
 import DownOutlined from '@ant-design/icons-vue/DownOutlined';
+import useConfigInject from '../_util/hooks/useConfigInject';
+import type { MouseEventHandler } from '../_util/EventInterface';
 
+export const breadcrumbItemProps = () => ({
+  prefixCls: String,
+  href: String,
+  separator: PropTypes.any,
+  overlay: PropTypes.any,
+  onClick: Function as PropType<MouseEventHandler>,
+});
+
+export type BreadcrumbItemProps = Partial<ExtractPropTypes<ReturnType<typeof breadcrumbItemProps>>>;
 export default defineComponent({
   name: 'ABreadcrumbItem',
+  inheritAttrs: false,
   __ANT_BREADCRUMB_ITEM: true,
-  props: {
-    prefixCls: PropTypes.string,
-    href: PropTypes.string,
-    separator: PropTypes.VNodeChild.def('/'),
-    overlay: PropTypes.VNodeChild,
-  },
-  setup() {
-    return {
-      configProvider: inject('configProvider', defaultConfigProvider),
-    };
-  },
-  methods: {
+  props: breadcrumbItemProps(),
+  // emits: ['click'],
+  slots: ['separator', 'overlay'],
+  setup(props, { slots, attrs }) {
+    const { prefixCls } = useConfigInject('breadcrumb', props);
     /**
      * if overlay is have
      * Wrap a DropDown
      */
-    renderBreadcrumbNode(breadcrumbItem: JSX.Element, prefixCls: string) {
-      const overlay = getComponent(this, 'overlay');
+    const renderBreadcrumbNode = (breadcrumbItem: JSX.Element, prefixCls: string) => {
+      const overlay = getPropsSlot(slots, props, 'overlay');
       if (overlay) {
         return (
-          <DropDown overlay={overlay} placement="bottomCenter">
+          <DropDown overlay={overlay} placement="bottom">
             <span class={`${prefixCls}-overlay-link`}>
               {breadcrumbItem}
               <DownOutlined />
@@ -37,32 +42,37 @@ export default defineComponent({
         );
       }
       return breadcrumbItem;
-    },
-  },
-  render() {
-    const { prefixCls: customizePrefixCls } = this;
-    const getPrefixCls = this.configProvider.getPrefixCls;
-    const prefixCls = getPrefixCls('breadcrumb', customizePrefixCls);
-    const separator = getComponent(this, 'separator');
-    const children = getSlot(this);
-    let link: JSX.Element;
-    if (hasProp(this, 'href')) {
-      link = <a class={`${prefixCls}-link`}>{children}</a>;
-    } else {
-      link = <span class={`${prefixCls}-link`}>{children}</span>;
-    }
-    // wrap to dropDown
-    link = this.renderBreadcrumbNode(link, prefixCls);
-    if (children) {
-      return (
-        <span>
-          {link}
-          {separator && separator !== '' && (
-            <span class={`${prefixCls}-separator`}>{separator}</span>
-          )}
-        </span>
-      );
-    }
-    return null;
+    };
+
+    return () => {
+      const separator = getPropsSlot(slots, props, 'separator') ?? '/';
+      const children = getPropsSlot(slots, props);
+      const { class: cls, style, ...restAttrs } = attrs;
+      let link: JSX.Element;
+      if (props.href !== undefined) {
+        link = (
+          <a class={`${prefixCls.value}-link`} onClick={props.onClick} {...restAttrs}>
+            {children}
+          </a>
+        );
+      } else {
+        link = (
+          <span class={`${prefixCls.value}-link`} onClick={props.onClick} {...restAttrs}>
+            {children}
+          </span>
+        );
+      }
+      // wrap to dropDown
+      link = renderBreadcrumbNode(link, prefixCls.value);
+      if (children) {
+        return (
+          <span class={cls} style={style}>
+            {link}
+            {separator && <span class={`${prefixCls.value}-separator`}>{separator}</span>}
+          </span>
+        );
+      }
+      return null;
+    };
   },
 });

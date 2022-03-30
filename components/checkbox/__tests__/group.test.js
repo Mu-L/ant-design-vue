@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { asyncExpect, sleep } from '@/tests/utils';
+import { asyncExpect, sleep } from '../../../tests/utils';
 import Checkbox from '../index';
 import mountTest from '../../../tests/shared/mountTest';
 
@@ -103,11 +103,10 @@ describe('CheckboxGroup', () => {
       props: { options },
       sync: false,
     });
-
-    expect(wrapper.vm.sValue).toEqual([]);
+    expect(wrapper.vm.mergedValue).toEqual([]);
     wrapper.setProps({ value: ['Apple'] });
     await asyncExpect(() => {
-      expect(wrapper.vm.sValue).toEqual(['Apple']);
+      expect(wrapper.vm.mergedValue).toEqual(['Apple']);
     });
   });
 

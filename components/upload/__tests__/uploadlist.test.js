@@ -3,11 +3,11 @@ import * as Vue from 'vue';
 import Upload from '..';
 import { errorRequest, successRequest } from './requests';
 import PropsTypes from '../../_util/vue-types';
-import { UploadListProps } from '../interface';
+import { uploadListProps } from '../interface';
 import { sleep } from '../../../tests/utils';
 import { h } from 'vue';
 
-UploadListProps.items = PropsTypes.any;
+uploadListProps.items = PropsTypes.any;
 
 const delay = timeout => new Promise(resolve => setTimeout(resolve, timeout));
 const fileList = [
@@ -93,10 +93,7 @@ describe('Upload List', () => {
     const wrapper = mount(Upload, props);
     setTimeout(async () => {
       expect(wrapper.findAll('.ant-upload-list-item').length).toBe(2);
-      wrapper
-        .findAll('.ant-upload-list-item')[0]
-        .find('.anticon-delete')
-        .trigger('click');
+      wrapper.findAll('.ant-upload-list-item')[0].find('.anticon-delete').trigger('click');
       await delay(400);
       // wrapper.update();
       expect(wrapper.findAll('.ant-upload-list-item').length).toBe(1);
@@ -303,7 +300,7 @@ describe('Upload List', () => {
         defaultFileList: fileList,
         listType: 'picture-card',
         action: '',
-        remove: handleRemove,
+        onRemove: handleRemove,
         onChange: handleChange,
       },
 

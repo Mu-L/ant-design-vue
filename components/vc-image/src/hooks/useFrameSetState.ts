@@ -5,7 +5,7 @@ type SetActionType<T> = Partial<T> | ((state: T) => Partial<T>);
 export default function useFrameSetState<T extends object>(
   initial: T,
 ): [Record<string, any>, (newState: SetActionType<T>) => void] {
-  const frame = ref(null);
+  const frame = ref<number>(null);
   const state = reactive({ ...initial });
   const queue = ref<SetActionType<T>[]>([]);
 

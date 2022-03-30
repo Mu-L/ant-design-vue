@@ -1,96 +1,95 @@
 import TransBtn from '../TransBtn';
-import { LabelValueType, RawValueType, CustomTagProps } from '../interface/generator';
-import { RenderNode } from '../interface';
-import { InnerSelectorProps } from '.';
+import type { InnerSelectorProps } from './interface';
 import Input from './Input';
-import {
-  computed,
-  defineComponent,
-  onMounted,
-  ref,
-  VNodeChild,
-  watch,
-  watchEffect,
-  Ref,
-} from 'vue';
+import type { Ref, PropType } from 'vue';
+import { computed, defineComponent, onMounted, ref, watch } from 'vue';
 import classNames from '../../_util/classNames';
 import pickAttrs from '../../_util/pickAttrs';
 import PropTypes from '../../_util/vue-types';
-import { getTransitionGroupProps, TransitionGroup } from '../../_util/transition';
+import type { VueNode } from '../../_util/type';
+import Overflow from '../../vc-overflow';
+import type { DisplayValueType, RenderNode, CustomTagProps, RawValueType } from '../BaseSelect';
+import type { BaseOptionType } from '../Select';
+import useInjectLegacySelectContext from '../../vc-tree-select/LegacyContext';
 
-const REST_TAG_KEY = '__RC_SELECT_MAX_REST_COUNT__';
-
-interface SelectorProps extends InnerSelectorProps {
+type SelectorProps = InnerSelectorProps & {
   // Icon
   removeIcon?: RenderNode;
 
   // Tags
-  maxTagCount?: number;
+  maxTagCount?: number | 'responsive';
   maxTagTextLength?: number;
-  maxTagPlaceholder?: VNodeChild;
+  maxTagPlaceholder?: VueNode | ((omittedValues: DisplayValueType[]) => VueNode);
   tokenSeparators?: string[];
-  tagRender?: (props: CustomTagProps) => VNodeChild;
+  tagRender?: (props: CustomTagProps) => VueNode;
+  onToggleOpen: any;
 
   // Motion
   choiceTransitionName?: string;
 
   // Event
-  onSelect: (value: RawValueType, option: { selected: boolean }) => void;
-}
+  onRemove: (value: DisplayValueType) => void;
+};
 
 const props = {
-  id: PropTypes.string,
-  prefixCls: PropTypes.string,
+  id: String,
+  prefixCls: String,
   values: PropTypes.array,
-  open: PropTypes.looseBool,
-  searchValue: PropTypes.string,
+  open: { type: Boolean, default: undefined },
+  searchValue: String,
   inputRef: PropTypes.any,
   placeholder: PropTypes.any,
-  disabled: PropTypes.looseBool,
-  mode: PropTypes.string,
-  showSearch: PropTypes.looseBool,
-  autofocus: PropTypes.looseBool,
-  autocomplete: PropTypes.string,
-  accessibilityIndex: PropTypes.number,
-  tabindex: PropTypes.number,
+  disabled: { type: Boolean, default: undefined },
+  mode: String,
+  showSearch: { type: Boolean, default: undefined },
+  autofocus: { type: Boolean, default: undefined },
+  autocomplete: String,
+  activeDescendantId: String,
+  tabindex: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
 
-  removeIcon: PropTypes.VNodeChild,
-  choiceTransitionName: PropTypes.string,
+  removeIcon: PropTypes.any,
+  choiceTransitionName: String,
 
-  maxTagCount: PropTypes.number,
-  maxTagTextLength: PropTypes.number,
-  maxTagPlaceholder: PropTypes.any.def(() => (omittedValues: LabelValueType[]) =>
-    `+ ${omittedValues.length} ...`,
+  maxTagCount: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  maxTagTextLength: Number,
+  maxTagPlaceholder: PropTypes.any.def(
+    () => (omittedValues: DisplayValueType[]) => `+ ${omittedValues.length} ...`,
   ),
-  tagRender: PropTypes.func,
+  tagRender: Function,
 
-  onSelect: PropTypes.func,
-  onInputChange: PropTypes.func,
-  onInputPaste: PropTypes.func,
-  onInputKeyDown: PropTypes.func,
-  onInputMouseDown: PropTypes.func,
-  onInputCompositionStart: PropTypes.func,
-  onInputCompositionEnd: PropTypes.func,
+  onToggleOpen: { type: Function as PropType<(open?: boolean) => void> },
+  onRemove: Function,
+  onInputChange: Function,
+  onInputPaste: Function,
+  onInputKeyDown: Function,
+  onInputMouseDown: Function,
+  onInputCompositionStart: Function,
+  onInputCompositionEnd: Function,
+};
+
+const onPreventMouseDown = (event: MouseEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
 };
 
 const SelectSelector = defineComponent<SelectorProps>({
   name: 'MultipleSelectSelector',
+  inheritAttrs: false,
+  props: props as any,
   setup(props) {
-    let motionAppear = false; // not need use ref, because not need trigger watchEffect
     const measureRef = ref();
     const inputWidth = ref(0);
-
-    // ===================== Motion ======================
-    onMounted(() => {
-      motionAppear = true;
-    });
+    const focused = ref(false);
+    const legacyTreeSelectContext = useInjectLegacySelectContext();
+    const selectionPrefixCls = computed(() => `${props.prefixCls}-selection`);
 
     // ===================== Search ======================
     const inputValue = computed(() =>
       props.open || props.mode === 'tags' ? props.searchValue : '',
     );
     const inputEditable: Ref<boolean> = computed(
-      () => props.mode === 'tags' || ((props.open && props.showSearch) as boolean),
+      () =>
+        props.mode === 'tags' || ((props.showSearch && (props.open || focused.value)) as boolean),
     );
 
     // We measure width and set to the input immediately
@@ -100,122 +99,108 @@ const SelectSelector = defineComponent<SelectorProps>({
         () => {
           inputWidth.value = measureRef.value.scrollWidth;
         },
-        { flush: 'post' },
+        { flush: 'post', immediate: true },
       );
     });
 
-    const selectionNode = ref();
-    watchEffect(() => {
-      const {
-        values,
-        prefixCls,
-        removeIcon,
-        choiceTransitionName,
-        maxTagCount,
-        maxTagTextLength,
-        maxTagPlaceholder = (omittedValues: LabelValueType[]) => `+ ${omittedValues.length} ...`,
-        tagRender,
-        onSelect,
-      } = props;
-      // ==================== Selection ====================
-      let displayValues: LabelValueType[] = values;
-
-      // Cut by `maxTagCount`
-      let restCount: number;
-      if (typeof maxTagCount === 'number') {
-        restCount = values.length - maxTagCount;
-        displayValues = values.slice(0, maxTagCount);
-      }
-
-      // Update by `maxTagTextLength`
-      if (typeof maxTagTextLength === 'number') {
-        displayValues = displayValues.map(({ label, ...rest }) => {
-          let displayLabel = label;
-
-          if (typeof label === 'string' || typeof label === 'number') {
-            const strLabel = String(displayLabel);
-
-            if (strLabel.length > maxTagTextLength) {
-              displayLabel = `${strLabel.slice(0, maxTagTextLength)}...`;
-            }
+    // ===================== Render ======================
+    // >>> Render Selector Node. Includes Item & Rest
+    function defaultRenderSelector(
+      title: VueNode,
+      content: VueNode,
+      itemDisabled: boolean,
+      closable?: boolean,
+      onClose?: (e: MouseEvent) => void,
+    ) {
+      return (
+        <span
+          class={classNames(`${selectionPrefixCls.value}-item`, {
+            [`${selectionPrefixCls.value}-item-disabled`]: itemDisabled,
+          })}
+          title={
+            typeof title === 'string' || typeof title === 'number' ? title.toString() : undefined
           }
-
-          return {
-            ...rest,
-            label: displayLabel,
-          };
-        });
-      }
-
-      // Fill rest
-      if (restCount > 0) {
-        displayValues.push({
-          key: REST_TAG_KEY,
-          label:
-            typeof maxTagPlaceholder === 'function'
-              ? maxTagPlaceholder(values.slice(maxTagCount))
-              : maxTagPlaceholder,
-        });
-      }
-      const transitionProps = getTransitionGroupProps(choiceTransitionName, {
-        appear: motionAppear,
-      });
-      selectionNode.value = (
-        <TransitionGroup {...transitionProps}>
-          {...displayValues.map(
-            ({ key, label, value, disabled: itemDisabled, class: className, style }) => {
-              const mergedKey = key || value;
-              const closable = key !== REST_TAG_KEY && !itemDisabled;
-              const onMousedown = (event: MouseEvent) => {
-                event.preventDefault();
-                event.stopPropagation();
-              };
-              const onClose = (event?: MouseEvent) => {
-                if (event) event.stopPropagation();
-                onSelect(value as RawValueType, { selected: false });
-              };
-
-              return typeof tagRender === 'function' ? (
-                <span
-                  key={mergedKey as string}
-                  onMousedown={onMousedown}
-                  class={classNames(className)}
-                  style={style}
-                >
-                  {tagRender({
-                    label,
-                    value,
-                    disabled: itemDisabled,
-                    closable,
-                    onClose,
-                  } as CustomTagProps)}
-                </span>
-              ) : (
-                <span
-                  key={mergedKey as string}
-                  class={classNames(className, `${prefixCls}-selection-item`, {
-                    [`${prefixCls}-selection-item-disabled`]: itemDisabled,
-                  })}
-                  style={style}
-                >
-                  <span class={`${prefixCls}-selection-item-content`}>{label}</span>
-                  {closable && (
-                    <TransBtn
-                      class={`${prefixCls}-selection-item-remove`}
-                      onMousedown={onMousedown}
-                      onClick={onClose}
-                      customizeIcon={removeIcon}
-                    >
-                      ×
-                    </TransBtn>
-                  )}
-                </span>
-              );
-            },
+        >
+          <span class={`${selectionPrefixCls.value}-item-content`}>{content}</span>
+          {closable && (
+            <TransBtn
+              class={`${selectionPrefixCls.value}-item-remove`}
+              onMousedown={onPreventMouseDown}
+              onClick={onClose}
+              customizeIcon={props.removeIcon}
+            >
+              ×
+            </TransBtn>
           )}
-        </TransitionGroup>
+        </span>
       );
-    });
+    }
+
+    function customizeRenderSelector(
+      value: RawValueType,
+      content: VueNode,
+      itemDisabled: boolean,
+      closable: boolean,
+      onClose: (e: MouseEvent) => void,
+      option: BaseOptionType,
+    ) {
+      const onMouseDown = (e: MouseEvent) => {
+        onPreventMouseDown(e);
+        props.onToggleOpen(!open);
+      };
+      let originData = option;
+      // For TreeSelect
+      if (legacyTreeSelectContext.keyEntities) {
+        originData = legacyTreeSelectContext.keyEntities[value]?.node || {};
+      }
+      return (
+        <span key={value} onMousedown={onMouseDown}>
+          {props.tagRender({
+            label: content,
+            value,
+            disabled: itemDisabled,
+            closable,
+            onClose,
+            option: originData,
+          })}
+        </span>
+      );
+    }
+
+    function renderItem(valueItem: DisplayValueType) {
+      const { disabled: itemDisabled, label, value, option } = valueItem;
+      const closable = !props.disabled && !itemDisabled;
+
+      let displayLabel = label;
+
+      if (typeof props.maxTagTextLength === 'number') {
+        if (typeof label === 'string' || typeof label === 'number') {
+          const strLabel = String(displayLabel);
+
+          if (strLabel.length > props.maxTagTextLength) {
+            displayLabel = `${strLabel.slice(0, props.maxTagTextLength)}...`;
+          }
+        }
+      }
+      const onClose = (event?: MouseEvent) => {
+        if (event) event.stopPropagation();
+        props.onRemove?.(valueItem);
+      };
+
+      return typeof props.tagRender === 'function'
+        ? customizeRenderSelector(value, displayLabel, itemDisabled, closable, onClose, option)
+        : defaultRenderSelector(label, displayLabel, itemDisabled, closable, onClose);
+    }
+
+    function renderRest(omittedValues: DisplayValueType[]) {
+      const { maxTagPlaceholder = omittedValues => `+ ${omittedValues.length} ...` } = props;
+      const content =
+        typeof maxTagPlaceholder === 'function'
+          ? maxTagPlaceholder(omittedValues)
+          : maxTagPlaceholder;
+
+      return defaultRenderSelector(content, content, false);
+    }
 
     return () => {
       const {
@@ -228,7 +213,7 @@ const SelectSelector = defineComponent<SelectorProps>({
         disabled,
         autofocus,
         autocomplete,
-        accessibilityIndex,
+        activeDescendantId,
         tabindex,
         onInputChange,
         onInputPaste,
@@ -237,46 +222,68 @@ const SelectSelector = defineComponent<SelectorProps>({
         onInputCompositionStart,
         onInputCompositionEnd,
       } = props;
+
+      // >>> Input Node
+      const inputNode = (
+        <div
+          class={`${selectionPrefixCls.value}-search`}
+          style={{ width: inputWidth.value + 'px' }}
+          key="input"
+        >
+          <Input
+            inputRef={inputRef}
+            open={open}
+            prefixCls={prefixCls}
+            id={id}
+            inputElement={null}
+            disabled={disabled}
+            autofocus={autofocus}
+            autocomplete={autocomplete}
+            editable={inputEditable.value}
+            activeDescendantId={activeDescendantId}
+            value={inputValue.value}
+            onKeydown={onInputKeyDown}
+            onMousedown={onInputMouseDown}
+            onChange={onInputChange}
+            onPaste={onInputPaste}
+            onCompositionstart={onInputCompositionStart}
+            onCompositionend={onInputCompositionEnd}
+            tabindex={tabindex}
+            attrs={pickAttrs(props, true)}
+            onFocus={() => (focused.value = true)}
+            onBlur={() => (focused.value = false)}
+          />
+
+          {/* Measure Node */}
+          <span ref={measureRef} class={`${selectionPrefixCls.value}-search-mirror`} aria-hidden>
+            {inputValue.value}&nbsp;
+          </span>
+        </div>
+      );
+
+      // >>> Selections
+      const selectionNode = (
+        <Overflow
+          prefixCls={`${selectionPrefixCls.value}-overflow`}
+          data={values}
+          renderItem={renderItem}
+          renderRest={renderRest}
+          suffix={inputNode}
+          itemKey="key"
+          maxCount={props.maxTagCount}
+          key="overflow"
+        />
+      );
       return (
         <>
-          {selectionNode.value}
-          <span class={`${prefixCls}-selection-search`} style={{ width: inputWidth.value + 'px' }}>
-            <Input
-              inputRef={inputRef}
-              open={open}
-              prefixCls={prefixCls}
-              id={id}
-              inputElement={null}
-              disabled={disabled}
-              autofocus={autofocus}
-              autocomplete={autocomplete}
-              editable={inputEditable.value as boolean}
-              accessibilityIndex={accessibilityIndex}
-              value={inputValue.value}
-              onKeydown={onInputKeyDown}
-              onMousedown={onInputMouseDown}
-              onChange={onInputChange}
-              onPaste={onInputPaste}
-              onCompositionstart={onInputCompositionStart}
-              onCompositionend={onInputCompositionEnd}
-              tabindex={tabindex}
-              attrs={pickAttrs(props, true)}
-            />
-
-            {/* Measure Node */}
-            <span ref={measureRef} class={`${prefixCls}-selection-search-mirror`} aria-hidden>
-              {inputValue.value}&nbsp;
-            </span>
-          </span>
-
+          {selectionNode}
           {!values.length && !inputValue.value && (
-            <span class={`${prefixCls}-selection-placeholder`}>{placeholder}</span>
+            <span class={`${selectionPrefixCls.value}-placeholder`}>{placeholder}</span>
           )}
         </>
       );
     };
   },
 });
-SelectSelector.inheritAttrs = false;
-SelectSelector.props = props;
+
 export default SelectSelector;

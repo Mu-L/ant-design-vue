@@ -1,38 +1,41 @@
 import pickAttrs from '../../_util/pickAttrs';
 import Input from './Input';
-import { InnerSelectorProps } from '.';
-import { computed, defineComponent, Fragment, ref, VNodeChild, watch } from 'vue';
+import type { InnerSelectorProps } from './interface';
+import { Fragment, computed, defineComponent, ref, watch } from 'vue';
 import PropTypes from '../../_util/vue-types';
+import type { VueNode } from '../../_util/type';
+import useInjectLegacySelectContext from '../../vc-tree-select/LegacyContext';
 
 interface SelectorProps extends InnerSelectorProps {
-  inputElement: VNodeChild;
+  inputElement: VueNode;
   activeValue: string;
-  backfill?: boolean;
+  optionLabelRender: Function;
 }
 const props = {
   inputElement: PropTypes.any,
-  id: PropTypes.string,
-  prefixCls: PropTypes.string,
+  id: String,
+  prefixCls: String,
   values: PropTypes.array,
-  open: PropTypes.looseBool,
-  searchValue: PropTypes.string,
+  open: { type: Boolean, default: undefined },
+  searchValue: String,
   inputRef: PropTypes.any,
   placeholder: PropTypes.any,
-  disabled: PropTypes.looseBool,
-  mode: PropTypes.string,
-  showSearch: PropTypes.looseBool,
-  autofocus: PropTypes.looseBool,
-  autocomplete: PropTypes.string,
-  accessibilityIndex: PropTypes.number,
-  tabindex: PropTypes.number,
-  activeValue: PropTypes.string,
-  backfill: PropTypes.looseBool,
-  onInputChange: PropTypes.func,
-  onInputPaste: PropTypes.func,
-  onInputKeyDown: PropTypes.func,
-  onInputMouseDown: PropTypes.func,
-  onInputCompositionStart: PropTypes.func,
-  onInputCompositionEnd: PropTypes.func,
+  disabled: { type: Boolean, default: undefined },
+  mode: String,
+  showSearch: { type: Boolean, default: undefined },
+  autofocus: { type: Boolean, default: undefined },
+  autocomplete: String,
+  activeDescendantId: String,
+  tabindex: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  activeValue: String,
+  backfill: { type: Boolean, default: undefined },
+  optionLabelRender: Function,
+  onInputChange: Function,
+  onInputPaste: Function,
+  onInputKeyDown: Function,
+  onInputMouseDown: Function,
+  onInputCompositionStart: Function,
+  onInputCompositionEnd: Function,
 };
 const SingleSelector = defineComponent<SelectorProps>({
   name: 'SingleSelector',
@@ -49,8 +52,9 @@ const SingleSelector = defineComponent<SelectorProps>({
       }
       return inputValue;
     });
+    const legacyTreeSelectContext = useInjectLegacySelectContext();
     watch(
-      computed(() => [combobox.value, props.activeValue]),
+      [combobox, () => props.activeValue],
       () => {
         if (combobox.value) {
           inputChanged.value = false;
@@ -61,7 +65,7 @@ const SingleSelector = defineComponent<SelectorProps>({
 
     // Not show text when closed expect combobox mode
     const hasTextInput = computed(() =>
-      props.mode !== 'combobox' && !props.open ? false : !!inputValue.value,
+      props.mode !== 'combobox' && !props.open && !props.showSearch ? false : !!inputValue.value,
     );
 
     const title = computed(() => {
@@ -70,6 +74,18 @@ const SingleSelector = defineComponent<SelectorProps>({
         ? item.label.toString()
         : undefined;
     });
+
+    const renderPlaceholder = () => {
+      if (props.values[0]) {
+        return null;
+      }
+      const hiddenStyle = hasTextInput.value ? { visibility: 'hidden' as const } : undefined;
+      return (
+        <span class={`${props.prefixCls}-selection-placeholder`} style={hiddenStyle}>
+          {props.placeholder}
+        </span>
+      );
+    };
 
     return () => {
       const {
@@ -81,10 +97,10 @@ const SingleSelector = defineComponent<SelectorProps>({
         disabled,
         autofocus,
         autocomplete,
-        accessibilityIndex,
+        activeDescendantId,
         open,
-        placeholder,
         tabindex,
+        optionLabelRender,
         onInputKeyDown,
         onInputMouseDown,
         onInputChange,
@@ -93,6 +109,27 @@ const SingleSelector = defineComponent<SelectorProps>({
         onInputCompositionEnd,
       } = props;
       const item = values[0];
+      let titleNode = null;
+      // custom tree-select title by slot
+
+      // For TreeSelect
+      if (item && legacyTreeSelectContext.customSlots) {
+        const key = item.key ?? item.value;
+        const originData = legacyTreeSelectContext.keyEntities[key]?.node || {};
+        titleNode =
+          legacyTreeSelectContext.customSlots[originData.slots?.title] ||
+          legacyTreeSelectContext.customSlots.title ||
+          item.label;
+        if (typeof titleNode === 'function') {
+          titleNode = titleNode(originData);
+        }
+        //  else if (treeSelectContext.value.slots.titleRender) {
+        //   // 因历史 title 是覆盖逻辑，新增 titleRender，所有的 title 都走一遍 titleRender
+        //   titleNode = treeSelectContext.value.slots.titleRender(item.option?.data || {});
+        // }
+      } else {
+        titleNode = optionLabelRender && item ? optionLabelRender(item.option) : item?.label;
+      }
       return (
         <>
           <span class={`${prefixCls}-selection-search`}>
@@ -106,7 +143,7 @@ const SingleSelector = defineComponent<SelectorProps>({
               autofocus={autofocus}
               autocomplete={autocomplete}
               editable={inputEditable.value}
-              accessibilityIndex={accessibilityIndex}
+              activeDescendantId={activeDescendantId}
               value={inputValue.value}
               onKeydown={onInputKeyDown}
               onMousedown={onInputMouseDown}
@@ -125,14 +162,12 @@ const SingleSelector = defineComponent<SelectorProps>({
           {/* Display value */}
           {!combobox.value && item && !hasTextInput.value && (
             <span class={`${prefixCls}-selection-item`} title={title.value}>
-              <Fragment key={item.key || item.value}>{item.label}</Fragment>
+              <Fragment key={item.key ?? item.value}>{titleNode}</Fragment>
             </span>
           )}
 
           {/* Display placeholder */}
-          {!item && !hasTextInput.value && (
-            <span class={`${prefixCls}-selection-placeholder`}>{placeholder}</span>
-          )}
+          {renderPlaceholder()}
         </>
       );
     };

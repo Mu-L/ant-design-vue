@@ -1,21 +1,35 @@
-import { defineComponent, nextTick, Transition as T, TransitionGroup as TG } from 'vue';
-import { findDOMNode } from './props-util';
+import type {
+  BaseTransitionProps,
+  CSSProperties,
+  Ref,
+  TransitionGroupProps,
+  TransitionProps,
+} from 'vue';
+import {
+  onUpdated,
+  getCurrentInstance,
+  defineComponent,
+  nextTick,
+  Transition as T,
+  TransitionGroup as TG,
+} from 'vue';
 
-export const getTransitionProps = (transitionName: string, opt: object = {}) => {
+export const getTransitionProps = (transitionName: string, opt: TransitionProps = {}) => {
   if (process.env.NODE_ENV === 'test') {
     return opt;
   }
-  const transitionProps = transitionName
+  const transitionProps: TransitionProps = transitionName
     ? {
         appear: true,
-        appearFromClass: `${transitionName}-appear ${transitionName}-appear-prepare`,
+        // type: 'animation',
+        // appearFromClass: `${transitionName}-appear ${transitionName}-appear-prepare`,
         // appearActiveClass: `antdv-base-transtion`,
-        appearToClass: `${transitionName}-appear ${transitionName}-appear-active`,
+        // appearToClass: `${transitionName}-appear ${transitionName}-appear-active`,
         enterFromClass: `${transitionName}-enter ${transitionName}-enter-prepare`,
-        // enterActiveClass: `antdv-base-transtion`,
+        enterActiveClass: `${transitionName}-enter ${transitionName}-enter-prepare`,
         enterToClass: `${transitionName}-enter ${transitionName}-enter-active`,
         leaveFromClass: ` ${transitionName}-leave`,
-        leaveActiveClass: `${transitionName}-leave ${transitionName}-leave-active`,
+        leaveActiveClass: `${transitionName}-leave`,
         leaveToClass: `${transitionName}-leave ${transitionName}-leave-active`,
         ...opt,
       }
@@ -23,11 +37,11 @@ export const getTransitionProps = (transitionName: string, opt: object = {}) => 
   return transitionProps;
 };
 
-export const getTransitionGroupProps = (transitionName: string, opt: object = {}) => {
-  const transitionProps = transitionName
+export const getTransitionGroupProps = (transitionName: string, opt: TransitionProps = {}) => {
+  const transitionProps: TransitionGroupProps = transitionName
     ? {
         appear: true,
-        appearFromClass: `${transitionName}-appear ${transitionName}-appear-prepare`,
+        // appearFromClass: `${transitionName}-appear ${transitionName}-appear-prepare`,
         appearActiveClass: `${transitionName}`,
         appearToClass: `${transitionName}-appear ${transitionName}-appear-active`,
         enterFromClass: `${transitionName}-appear ${transitionName}-enter ${transitionName}-appear-prepare ${transitionName}-enter-prepare`,
@@ -45,23 +59,35 @@ let Transition = T;
 let TransitionGroup = TG;
 
 if (process.env.NODE_ENV === 'test') {
-  Transition = (props, { slots }) => {
-    const child = slots.default?.()[0];
-    if (child && child.dirs && child.dirs[0]) {
-      const value = child.dirs[0].value;
-      const oldValue = child.dirs[0].oldValue;
-      if (!value && value !== oldValue) {
-        nextTick(() => {
-          if (props.onAfterLeave) {
-            props.onAfterLeave(findDOMNode(this));
-          }
-        });
+  let warn = true;
+  Transition = defineComponent({
+    name: 'TransitionForTest',
+    inheritAttrs: false,
+    setup(_props, { slots, attrs }) {
+      const instance = getCurrentInstance();
+      if (warn) {
+        console.warn('application runing at test env, you should build use production env');
+        warn = false;
       }
-    }
-    return slots.default?.();
-  };
-  Transition.displayName = 'TransitionForTest';
-  Transition.inheritAttrs = false;
+      onUpdated(() => {
+        const child = instance.subTree.children[0];
+        if (child && child.dirs && child.dirs[0]) {
+          const value = child.dirs[0].value;
+          const oldValue = child.dirs[0].oldValue;
+          if (!value && value !== oldValue) {
+            nextTick(() => {
+              if (attrs.onAfterLeave) {
+                (attrs as any).onAfterLeave(instance.vnode.el);
+              }
+            });
+          }
+        }
+      });
+      return () => {
+        return slots.default?.();
+      };
+    },
+  }) as any;
   TransitionGroup = defineComponent({
     name: 'TransitionGroupForTest',
     inheritAttrs: false,
@@ -80,6 +106,74 @@ if (process.env.NODE_ENV === 'test') {
   });
 }
 
-export { Transition, TransitionGroup };
+export declare type MotionEvent = (TransitionEvent | AnimationEvent) & {
+  deadline?: boolean;
+};
+
+export declare type MotionEventHandler = (element: Element, done?: () => void) => CSSProperties;
+
+export declare type MotionEndEventHandler = (element: Element, done?: () => void) => boolean | void;
+
+// ================== Collapse Motion ==================
+const getCollapsedHeight: MotionEventHandler = () => ({ height: 0, opacity: 0 });
+const getRealHeight: MotionEventHandler = node => ({
+  height: `${node.scrollHeight}px`,
+  opacity: 1,
+});
+const getCurrentHeight: MotionEventHandler = (node: any) => ({ height: `${node.offsetHeight}px` });
+// const skipOpacityTransition: MotionEndEventHandler = (_, event) =>
+//   (event as TransitionEvent).propertyName === 'height';
+
+export interface CSSMotionProps extends Partial<BaseTransitionProps<Element>> {
+  name?: string;
+  css?: boolean;
+}
+
+const collapseMotion = (
+  name = 'ant-motion-collapse',
+  style: Ref<CSSProperties>,
+  className: Ref<string>,
+): CSSMotionProps => {
+  return {
+    name,
+    appear: true,
+    css: true,
+    onBeforeEnter: node => {
+      className.value = name;
+      style.value = getCollapsedHeight(node);
+    },
+    onEnter: node => {
+      nextTick(() => {
+        style.value = getRealHeight(node);
+      });
+    },
+    onAfterEnter: () => {
+      className.value = '';
+      style.value = {};
+    },
+    onBeforeLeave: node => {
+      className.value = name;
+      style.value = getCurrentHeight(node);
+    },
+    onLeave: node => {
+      setTimeout(() => {
+        style.value = getCollapsedHeight(node);
+      });
+    },
+    onAfterLeave: () => {
+      className.value = '';
+      style.value = {};
+    },
+  };
+};
+
+const getTransitionName = (rootPrefixCls: string, motion: string, transitionName?: string) => {
+  if (transitionName !== undefined) {
+    return transitionName;
+  }
+  return `${rootPrefixCls}-${motion}`;
+};
+
+export { Transition, TransitionGroup, collapseMotion, getTransitionName };
 
 export default Transition;

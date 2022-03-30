@@ -1,36 +1,47 @@
-interface RafMap {
-  [id: number]: number;
+let raf = (callback: FrameRequestCallback) => +setTimeout(callback, 16);
+let caf = (num: number) => clearTimeout(num);
+
+if (typeof window !== 'undefined' && 'requestAnimationFrame' in window) {
+  raf = (callback: FrameRequestCallback) => window.requestAnimationFrame(callback);
+  caf = (handle: number) => window.cancelAnimationFrame(handle);
 }
 
-let id = 0;
-const ids: RafMap = {};
+let rafUUID = 0;
+const rafIds = new Map<number, number>();
 
-// Support call raf with delay specified frame
-export default function wrapperRaf(callback: () => void, delayFrames = 1): number {
-  const myId: number = id++;
-  let restFrames: number = delayFrames;
+function cleanup(id: number) {
+  rafIds.delete(id);
+}
 
-  function internalCallback() {
-    restFrames -= 1;
+export default function wrapperRaf(callback: () => void, times = 1): number {
+  rafUUID += 1;
+  const id = rafUUID;
 
-    if (restFrames <= 0) {
+  function callRef(leftTimes: number) {
+    if (leftTimes === 0) {
+      // Clean up
+      cleanup(id);
+
+      // Trigger
       callback();
-      delete ids[myId];
     } else {
-      ids[myId] = requestAnimationFrame(internalCallback);
+      // Next raf
+      const realId = raf(() => {
+        callRef(leftTimes - 1);
+      });
+
+      // Bind real raf id
+      rafIds.set(id, realId);
     }
   }
 
-  ids[myId] = requestAnimationFrame(internalCallback);
+  callRef(times);
 
-  return myId;
+  return id;
 }
 
-wrapperRaf.cancel = function cancel(pid?: number) {
-  if (pid === undefined) return;
-
-  cancelAnimationFrame(ids[pid]);
-  delete ids[pid];
+wrapperRaf.cancel = (id: number) => {
+  const realId = rafIds.get(id);
+  cleanup(realId);
+  return caf(realId);
 };
-
-wrapperRaf.ids = ids; // export this for test usage

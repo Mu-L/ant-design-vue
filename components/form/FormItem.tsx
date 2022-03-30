@@ -1,47 +1,54 @@
-import {
-  inject,
-  provide,
+import type {
   PropType,
+  ExtractPropTypes,
+  ComputedRef,
+  Ref,
+  ComponentPublicInstance,
+  HTMLAttributes,
+} from 'vue';
+import {
+  watch,
   defineComponent,
   computed,
   nextTick,
-  ExtractPropTypes,
+  ref,
+  watchEffect,
+  onBeforeUnmount,
+  toRaw,
 } from 'vue';
 import cloneDeep from 'lodash-es/cloneDeep';
 import PropTypes from '../_util/vue-types';
-import classNames from '../_util/classNames';
-import { getTransitionProps, Transition } from '../_util/transition';
 import Row from '../grid/Row';
-import Col, { ColProps } from '../grid/Col';
-import hasProp, {
-  findDOMNode,
-  getComponent,
-  getOptionProps,
-  getEvents,
-  isValidElement,
-  getSlot,
-} from '../_util/props-util';
-import BaseMixin from '../_util/BaseMixin';
-import { defaultConfigProvider } from '../config-provider';
-import { cloneElement } from '../_util/vnode';
-import CheckCircleFilled from '@ant-design/icons-vue/CheckCircleFilled';
-import ExclamationCircleFilled from '@ant-design/icons-vue/ExclamationCircleFilled';
-import CloseCircleFilled from '@ant-design/icons-vue/CloseCircleFilled';
-import LoadingOutlined from '@ant-design/icons-vue/LoadingOutlined';
-import { validateRules } from './utils/validateUtil';
+import type { ColProps } from '../grid/Col';
+import { filterEmpty } from '../_util/props-util';
+import { validateRules as validateRulesUtil } from './utils/validateUtil';
 import { getNamePath } from './utils/valueUtil';
 import { toArray } from './utils/typeUtil';
 import { warning } from '../vc-util/warning';
 import find from 'lodash-es/find';
-import { tuple, VueNode } from '../_util/type';
-import { ValidateOptions } from './interface';
+import { tuple } from '../_util/type';
+import type { InternalNamePath, Rule, RuleError, RuleObject, ValidateOptions } from './interface';
+import useConfigInject from '../_util/hooks/useConfigInject';
+import { useInjectForm } from './context';
+import FormItemLabel from './FormItemLabel';
+import FormItemInput from './FormItemInput';
+import type { ValidationRule } from './Form';
+import { useProvideFormItemContext } from './FormItemContext';
+import useDebounce from './utils/useDebounce';
 
-const iconMap = {
-  success: CheckCircleFilled,
-  warning: ExclamationCircleFilled,
-  error: CloseCircleFilled,
-  validating: LoadingOutlined,
-};
+const ValidateStatuses = tuple('success', 'warning', 'error', 'validating', '');
+export type ValidateStatus = typeof ValidateStatuses[number];
+
+export interface FieldExpose {
+  fieldValue: Ref<any>;
+  fieldId: ComputedRef<any>;
+  fieldName: ComputedRef<any>;
+  resetField: () => void;
+  clearValidate: () => void;
+  namePath: ComputedRef<InternalNamePath>;
+  rules?: ComputedRef<ValidationRule[]>;
+  validateRules: (options: ValidateOptions) => Promise<void> | Promise<RuleError[]>;
+}
 
 function getPropByPath(obj: any, namePathList: any, strict?: boolean) {
   let tempObj = obj;
@@ -74,71 +81,95 @@ function getPropByPath(obj: any, namePathList: any, strict?: boolean) {
     v: tempObj ? tempObj[keyArr[i]] : undefined,
   };
 }
-export const formItemProps = {
-  id: PropTypes.string,
-  htmlFor: PropTypes.string,
-  prefixCls: PropTypes.string,
-  label: PropTypes.VNodeChild,
-  help: PropTypes.VNodeChild,
-  extra: PropTypes.VNodeChild,
-  labelCol: { type: Object as PropType<ColProps> },
-  wrapperCol: { type: Object as PropType<ColProps> },
-  hasFeedback: PropTypes.looseBool.def(false),
-  colon: PropTypes.looseBool,
+export const formItemProps = () => ({
+  htmlFor: String,
+  prefixCls: String,
+  label: PropTypes.any,
+  help: PropTypes.any,
+  extra: PropTypes.any,
+  labelCol: { type: Object as PropType<ColProps & HTMLAttributes> },
+  wrapperCol: { type: Object as PropType<ColProps & HTMLAttributes> },
+  hasFeedback: { type: Boolean, default: false },
+  colon: { type: Boolean, default: undefined },
   labelAlign: PropTypes.oneOf(tuple('left', 'right')),
-  prop: { type: [String, Number, Array] as PropType<string | number | string[] | number[]> },
-  name: { type: [String, Number, Array] as PropType<string | number | string[] | number[]> },
-  rules: PropTypes.oneOfType([Array, Object]),
-  autoLink: PropTypes.looseBool.def(true),
-  required: PropTypes.looseBool,
-  validateFirst: PropTypes.looseBool,
+  prop: { type: [String, Number, Array] as PropType<string | number | Array<string | number>> },
+  name: { type: [String, Number, Array] as PropType<string | number | Array<string | number>> },
+  rules: [Array, Object] as PropType<Rule[] | Rule>,
+  autoLink: { type: Boolean, default: true },
+  required: { type: Boolean, default: undefined },
+  validateFirst: { type: Boolean, default: undefined },
   validateStatus: PropTypes.oneOf(tuple('', 'success', 'warning', 'error', 'validating')),
   validateTrigger: { type: [String, Array] as PropType<string | string[]> },
   messageVariables: { type: Object as PropType<Record<string, string>> },
+  hidden: Boolean,
+  noStyle: Boolean,
+});
+
+export type FormItemProps = Partial<ExtractPropTypes<ReturnType<typeof formItemProps>>>;
+
+export type FormItemExpose = {
+  onFieldBlur: () => void;
+  onFieldChange: () => void;
+  clearValidate: () => void;
+  resetField: () => void;
 };
 
-export type FormItemProps = Partial<ExtractPropTypes<typeof formItemProps>>;
+export type FormItemInstance = ComponentPublicInstance<FormItemProps, FormItemExpose>;
+
+let indexGuid = 0;
+
+// default form item id prefix.
+const defaultItemNamePrefixCls = 'form_item';
 
 export default defineComponent({
   name: 'AFormItem',
-  mixins: [BaseMixin],
   inheritAttrs: false,
   __ANT_NEW_FORM_ITEM: true,
-  props: formItemProps,
-  setup(props) {
-    const FormContext = inject('FormContext', {}) as any;
+  props: formItemProps(),
+  slots: ['help', 'label', 'extra'],
+  setup(props, { slots, attrs, expose }) {
+    warning(props.prop === undefined, `\`prop\` is deprecated. Please use \`name\` instead.`);
+    const eventKey = `form-item-${++indexGuid}`;
+    const { prefixCls } = useConfigInject('form', props);
+    const formContext = useInjectForm();
     const fieldName = computed(() => props.name || props.prop);
+    const errors = ref([]);
+    const validateDisabled = ref(false);
+    const inputRef = ref();
     const namePath = computed(() => {
       const val = fieldName.value;
       return getNamePath(val);
     });
     const fieldId = computed(() => {
-      const { id } = props;
-      if (id) {
-        return id;
-      } else if (!namePath.value.length) {
+      if (!namePath.value.length) {
         return undefined;
       } else {
-        const formName = FormContext.name;
+        const formName = formContext.name.value;
         const mergedId = namePath.value.join('_');
-        return formName ? `${formName}_${mergedId}` : mergedId;
+        return formName ? `${formName}_${mergedId}` : `${defaultItemNamePrefixCls}_${mergedId}`;
       }
     });
-    const fieldValue = computed(() => {
-      const model = FormContext.model;
+    const getNewFieldValue = () => {
+      const model = formContext.model.value;
       if (!model || !fieldName.value) {
         return;
+      } else {
+        return getPropByPath(model, namePath.value, true).v;
       }
-      return getPropByPath(model, namePath.value, true).v;
-    });
+    };
+    const fieldValue = computed(() => getNewFieldValue());
+
+    const initialValue = ref(cloneDeep(fieldValue.value));
     const mergedValidateTrigger = computed(() => {
       let validateTrigger =
-        props.validateTrigger !== undefined ? props.validateTrigger : FormContext.validateTrigger;
+        props.validateTrigger !== undefined
+          ? props.validateTrigger
+          : formContext.validateTrigger.value;
       validateTrigger = validateTrigger === undefined ? 'change' : validateTrigger;
       return toArray(validateTrigger);
     });
-    const getRules = () => {
-      let formRules = FormContext.rules;
+    const rulesRef = computed<ValidationRule[]>(() => {
+      let formRules = formContext.rules.value;
       const selfRules = props.rules;
       const requiredRule =
         props.required !== undefined
@@ -152,9 +183,9 @@ export default defineComponent({
       } else {
         return rules.concat(requiredRule);
       }
-    };
+    });
     const isRequired = computed(() => {
-      const rules = getRules();
+      const rules = rulesRef.value;
       let isRequired = false;
       if (rules && rules.length) {
         rules.every(rule => {
@@ -167,351 +198,245 @@ export default defineComponent({
       }
       return isRequired || props.required;
     });
-    return {
-      isFormItemChildren: inject('isFormItemChildren', false),
-      configProvider: inject('configProvider', defaultConfigProvider),
-      FormContext,
-      fieldId,
-      fieldName,
-      namePath,
-      isRequired,
-      getRules,
-      fieldValue,
-      mergedValidateTrigger,
-    };
-  },
-  data() {
-    warning(!hasProp(this, 'prop'), `\`prop\` is deprecated. Please use \`name\` instead.`);
-    return {
-      validateState: this.validateStatus,
-      validateMessage: '',
-      validateDisabled: false,
-      validator: {},
-      helpShow: false,
-      errors: [],
-      initialValue: undefined,
-    };
-  },
-  watch: {
-    validateStatus(val) {
-      this.validateState = val;
-    },
-  },
-  created() {
-    provide('isFormItemChildren', true);
-  },
-  mounted() {
-    if (this.fieldName) {
-      const { addField } = this.FormContext;
-      addField && addField(this);
-      this.initialValue = cloneDeep(this.fieldValue);
-    }
-  },
-  beforeUnmount() {
-    const { removeField } = this.FormContext;
-    removeField && removeField(this);
-  },
-  methods: {
-    getNamePath() {
-      const { fieldName } = this;
-      const { prefixName = [] } = this.FormContext;
 
-      return fieldName !== undefined ? [...prefixName, ...this.namePath] : [];
-    },
-    validateRules(options: ValidateOptions) {
-      const { validateFirst = false, messageVariables } = this.$props;
+    const validateState = ref();
+    watchEffect(() => {
+      validateState.value = props.validateStatus;
+    });
+    const messageVariables = computed(() => {
+      let variables: Record<string, string> = {};
+      if (typeof props.label === 'string') {
+        variables.label = props.label;
+      } else if (props.name) {
+        variables.label = String(name);
+      }
+      if (props.messageVariables) {
+        variables = { ...variables, ...props.messageVariables };
+      }
+      return variables;
+    });
+    const validateRules = (options: ValidateOptions) => {
+      // no name, no value, so the validate result is incorrect
+      if (namePath.value.length === 0) {
+        return;
+      }
+      const { validateFirst = false } = props;
       const { triggerName } = options || {};
-      const namePath = this.getNamePath();
 
-      let filteredRules = this.getRules();
+      let filteredRules = rulesRef.value;
       if (triggerName) {
         filteredRules = filteredRules.filter(rule => {
           const { trigger } = rule;
-          if (!trigger && !this.mergedValidateTrigger.length) {
+          if (!trigger && !mergedValidateTrigger.value.length) {
             return true;
           }
-          const triggerList = toArray(trigger || this.mergedValidateTrigger);
+          const triggerList = toArray(trigger || mergedValidateTrigger.value);
           return triggerList.includes(triggerName);
         });
       }
       if (!filteredRules.length) {
         return Promise.resolve();
       }
-      const promise = validateRules(
-        namePath,
-        this.fieldValue,
-        filteredRules,
-        options,
+      const promise = validateRulesUtil(
+        namePath.value,
+        fieldValue.value,
+        filteredRules as RuleObject[],
+        {
+          validateMessages: formContext.validateMessages.value,
+          ...options,
+        },
         validateFirst,
-        messageVariables,
+        messageVariables.value,
       );
-      this.validateState = 'validating';
-      this.errors = [];
+      validateState.value = 'validating';
+      errors.value = [];
 
       promise
         .catch(e => e)
-        .then((errors = []) => {
-          if (this.validateState === 'validating') {
-            this.validateState = errors.length ? 'error' : 'success';
-            this.validateMessage = errors[0];
-            this.errors = errors;
+        .then((results: RuleError[] = []) => {
+          if (validateState.value === 'validating') {
+            const res = results.filter(result => result && result.errors.length);
+            validateState.value = res.length ? 'error' : 'success';
+
+            errors.value = res.map(r => r.errors);
+
+            formContext.onValidate(
+              fieldName.value,
+              !errors.value.length,
+              errors.value.length ? toRaw(errors.value[0]) : null,
+            );
           }
         });
 
       return promise;
-    },
-    onFieldBlur() {
-      this.validateRules({ triggerName: 'blur' });
-    },
-    onFieldChange() {
-      if (this.validateDisabled) {
-        this.validateDisabled = false;
+    };
+
+    const onFieldBlur = () => {
+      validateRules({ triggerName: 'blur' });
+    };
+    const onFieldChange = () => {
+      if (validateDisabled.value) {
+        validateDisabled.value = false;
         return;
       }
-      this.validateRules({ triggerName: 'change' });
-    },
-    clearValidate() {
-      this.validateState = '';
-      this.validateMessage = '';
-      this.validateDisabled = false;
-    },
-    resetField() {
-      this.validateState = '';
-      this.validateMessage = '';
-      const model = this.FormContext.model || {};
-      const value = this.fieldValue;
-      const prop = getPropByPath(model, this.namePath, true);
-      this.validateDisabled = true;
+      validateRules({ triggerName: 'change' });
+    };
+    const clearValidate = () => {
+      validateState.value = props.validateStatus;
+      validateDisabled.value = false;
+      errors.value = [];
+    };
+
+    const resetField = () => {
+      validateState.value = props.validateStatus;
+      validateDisabled.value = true;
+      errors.value = [];
+      const model = formContext.model.value || {};
+      const value = fieldValue.value;
+      const prop = getPropByPath(model, namePath.value, true);
       if (Array.isArray(value)) {
-        prop.o[prop.k] = [].concat(this.initialValue);
+        prop.o[prop.k] = [].concat(initialValue.value);
       } else {
-        prop.o[prop.k] = this.initialValue;
+        prop.o[prop.k] = initialValue.value;
       }
       // reset validateDisabled after onFieldChange triggered
       nextTick(() => {
-        this.validateDisabled = false;
+        validateDisabled.value = false;
       });
-    },
-    getHelpMessage() {
-      const help = getComponent(this, 'help');
-
-      return this.validateMessage || help;
-    },
-
-    onLabelClick() {
-      const id = this.fieldId;
-      if (!id) {
+    };
+    const htmlFor = computed(() => {
+      return props.htmlFor === undefined ? fieldId.value : props.htmlFor;
+    });
+    const onLabelClick = () => {
+      const id = htmlFor.value;
+      if (!id || !inputRef.value) {
         return;
       }
-      const formItemNode = findDOMNode(this);
-      const control = formItemNode.querySelector(`[id="${id}"]`);
+      const control = inputRef.value.$el.querySelector(`[id="${id}"]`);
       if (control && control.focus) {
         control.focus();
       }
-    },
+    };
+    expose({
+      onFieldBlur,
+      onFieldChange,
+      clearValidate,
+      resetField,
+    });
 
-    onHelpAnimEnd(_key: string, helpShow: boolean) {
-      this.helpShow = helpShow;
-      if (!helpShow) {
-        this.$forceUpdate();
-      }
-    },
-
-    renderHelp(prefixCls: string) {
-      const help = this.getHelpMessage();
-      const children = help ? (
-        <div class={`${prefixCls}-explain`} key="help">
-          {help}
-        </div>
-      ) : null;
-      if (children) {
-        this.helpShow = !!children;
-      }
-      const transitionProps = getTransitionProps('show-help', {
-        onAfterEnter: () => this.onHelpAnimEnd('help', true),
-        onAfterLeave: () => this.onHelpAnimEnd('help', false),
-      });
-      return (
-        <Transition {...transitionProps} key="help">
-          {children}
-        </Transition>
-      );
-    },
-
-    renderExtra(prefixCls: string) {
-      const extra = getComponent(this, 'extra');
-      return extra ? <div class={`${prefixCls}-extra`}>{extra}</div> : null;
-    },
-
-    renderValidateWrapper(prefixCls: string, c1: VueNode, c2: VueNode, c3: VueNode) {
-      const validateStatus = this.validateState;
-
-      let classes = `${prefixCls}-item-control`;
-      if (validateStatus) {
-        classes = classNames(`${prefixCls}-item-control`, {
-          'has-feedback': validateStatus && this.hasFeedback,
-          'has-success': validateStatus === 'success',
-          'has-warning': validateStatus === 'warning',
-          'has-error': validateStatus === 'error',
-          'is-validating': validateStatus === 'validating',
-        });
-      }
-      const IconNode = validateStatus && iconMap[validateStatus];
-
-      const icon =
-        this.hasFeedback && IconNode ? (
-          <span class={`${prefixCls}-item-children-icon`}>
-            <IconNode />
-          </span>
-        ) : null;
-      return (
-        <div class={classes}>
-          <span class={`${prefixCls}-item-children`}>
-            {c1}
-            {icon}
-          </span>
-          {c2}
-          {c3}
-        </div>
-      );
-    },
-
-    renderWrapper(prefixCls: string, children: VueNode) {
-      const { wrapperCol: contextWrapperCol } = (this.isFormItemChildren
-        ? {}
-        : this.FormContext) as any;
-      const { wrapperCol } = this;
-      const mergedWrapperCol = wrapperCol || contextWrapperCol || {};
-      const { style, id, ...restProps } = mergedWrapperCol;
-      const className = classNames(`${prefixCls}-item-control-wrapper`, mergedWrapperCol.class);
-      const colProps = {
-        ...restProps,
-        class: className,
-        key: 'wrapper',
-        style,
-        id,
-      };
-      return <Col {...colProps}>{children}</Col>;
-    },
-
-    renderLabel(prefixCls: string) {
-      const {
-        vertical,
-        labelAlign: contextLabelAlign,
-        labelCol: contextLabelCol,
-        colon: contextColon,
-      } = this.FormContext;
-      const { labelAlign, labelCol, colon, fieldId, htmlFor } = this;
-      const label = getComponent(this, 'label');
-      const required = this.isRequired;
-      const mergedLabelCol = labelCol || contextLabelCol || {};
-
-      const mergedLabelAlign = labelAlign || contextLabelAlign;
-      const labelClsBasic = `${prefixCls}-item-label`;
-      const labelColClassName = classNames(
-        labelClsBasic,
-        mergedLabelAlign === 'left' && `${labelClsBasic}-left`,
-        mergedLabelCol.class,
-      );
-      const {
-        class: labelColClass,
-        style: labelColStyle,
-        id: labelColId,
-        ...restProps
-      } = mergedLabelCol;
-      let labelChildren = label;
-      // Keep label is original where there should have no colon
-      const computedColon = colon === true || (contextColon !== false && colon !== false);
-      const haveColon = computedColon && !vertical;
-      // Remove duplicated user input colon
-      if (haveColon && typeof label === 'string' && label.trim() !== '') {
-        labelChildren = label.replace(/[：:]\s*$/, '');
-      }
-
-      const labelClassName = classNames({
-        [`${prefixCls}-item-required`]: required,
-        [`${prefixCls}-item-no-colon`]: !computedColon,
-      });
-      const colProps = {
-        ...restProps,
-        class: labelColClassName,
-        key: 'label',
-        style: labelColStyle,
-        id: labelColId,
-      };
-
-      return label ? (
-        <Col {...colProps}>
-          <label
-            for={htmlFor || fieldId}
-            class={labelClassName}
-            title={typeof label === 'string' ? label : ''}
-            onClick={this.onLabelClick}
-          >
-            {labelChildren}
-          </label>
-        </Col>
-      ) : null;
-    },
-    renderChildren(prefixCls: string, child: VueNode) {
-      return [
-        this.renderLabel(prefixCls),
-        this.renderWrapper(
-          prefixCls,
-          this.renderValidateWrapper(
-            prefixCls,
-            child,
-            this.renderHelp(prefixCls),
-            this.renderExtra(prefixCls),
-          ),
-        ),
-      ];
-    },
-    renderFormItem(child: any[]) {
-      const { prefixCls: customizePrefixCls } = this.$props;
-      const { class: className, ...restProps } = this.$attrs as any;
-      const getPrefixCls = this.configProvider.getPrefixCls;
-      const prefixCls = getPrefixCls('form', customizePrefixCls);
-      const children = this.renderChildren(prefixCls, child);
-      const itemClassName = {
-        [className]: className,
-        [`${prefixCls}-item`]: true,
-        [`${prefixCls}-item-with-help`]: this.helpShow,
-      };
-
-      return (
-        <Row class={classNames(itemClassName)} key="row" {...restProps}>
-          {children}
-        </Row>
-      );
-    },
-  },
-  render() {
-    const { autoLink } = getOptionProps(this);
-    const children = getSlot(this);
-    let firstChildren = children[0];
-    if (this.fieldName && autoLink && isValidElement(firstChildren)) {
-      const originalEvents = getEvents(firstChildren);
-      const originalBlur = originalEvents.onBlur;
-      const originalChange = originalEvents.onChange;
-      firstChildren = cloneElement(firstChildren, {
-        ...(this.fieldId ? { id: this.fieldId } : undefined),
-        onBlur: (...args: any[]) => {
-          originalBlur && originalBlur(...args);
-          this.onFieldBlur();
-        },
-        onChange: (...args: any[]) => {
-          if (Array.isArray(originalChange)) {
-            for (let i = 0, l = originalChange.length; i < l; i++) {
-              originalChange[i](...args);
-            }
-          } else if (originalChange) {
-            originalChange(...args);
+    useProvideFormItemContext(
+      {
+        id: fieldId,
+        onFieldBlur: () => {
+          if (props.autoLink) {
+            onFieldBlur();
           }
-          this.onFieldChange();
         },
-      });
-    }
-    return this.renderFormItem([firstChildren, children.slice(1)]);
+        onFieldChange: () => {
+          if (props.autoLink) {
+            onFieldChange();
+          }
+        },
+        clearValidate,
+      },
+      computed(() => {
+        return !!(props.autoLink && formContext.model.value && fieldName.value);
+      }),
+    );
+    let registered = false;
+    watch(
+      fieldName,
+      val => {
+        if (val) {
+          if (!registered) {
+            registered = true;
+            formContext.addField(eventKey, {
+              fieldValue,
+              fieldId,
+              fieldName,
+              resetField,
+              clearValidate,
+              namePath,
+              validateRules,
+              rules: rulesRef,
+            });
+          }
+        } else {
+          registered = false;
+          formContext.removeField(eventKey);
+        }
+      },
+      { immediate: true },
+    );
+    onBeforeUnmount(() => {
+      formContext.removeField(eventKey);
+    });
+    const debounceErrors = useDebounce(errors);
+    const mergedValidateStatus = computed(() => {
+      if (props.validateStatus !== undefined) {
+        return props.validateStatus;
+      } else if (debounceErrors.value.length) {
+        return 'error';
+      }
+      return validateState.value;
+    });
+    const itemClassName = computed(() => ({
+      [`${prefixCls.value}-item`]: true,
+
+      // Status
+      [`${prefixCls.value}-item-has-feedback`]: mergedValidateStatus.value && props.hasFeedback,
+      [`${prefixCls.value}-item-has-success`]: mergedValidateStatus.value === 'success',
+      [`${prefixCls.value}-item-has-warning`]: mergedValidateStatus.value === 'warning',
+      [`${prefixCls.value}-item-has-error`]: mergedValidateStatus.value === 'error',
+      [`${prefixCls.value}-item-is-validating`]: mergedValidateStatus.value === 'validating',
+      [`${prefixCls.value}-item-hidden`]: props.hidden,
+    }));
+    return () => {
+      if (props.noStyle) return slots.default?.();
+      const help = props.help ?? (slots.help ? filterEmpty(slots.help()) : null);
+      return (
+        <Row
+          {...attrs}
+          class={[
+            itemClassName.value,
+            (help !== undefined && help !== null) || debounceErrors.value.length
+              ? `${prefixCls.value}-item-with-help`
+              : '',
+            attrs.class,
+          ]}
+          key="row"
+          v-slots={{
+            default: () => (
+              <>
+                {/* Label */}
+                <FormItemLabel
+                  {...props}
+                  htmlFor={htmlFor.value}
+                  required={isRequired.value}
+                  requiredMark={formContext.requiredMark.value}
+                  prefixCls={prefixCls.value}
+                  onClick={onLabelClick}
+                  label={props.label ?? slots.label?.()}
+                />
+                {/* Input Group */}
+                <FormItemInput
+                  {...props}
+                  errors={
+                    help !== undefined && help !== null ? toArray(help) : debounceErrors.value
+                  }
+                  prefixCls={prefixCls.value}
+                  status={mergedValidateStatus.value}
+                  ref={inputRef}
+                  help={help}
+                  extra={props.extra ?? slots.extra?.()}
+                  v-slots={{ default: slots.default }}
+                  // v-slots={{ default: () => [firstChildren, children.slice(1)] }}
+                ></FormItemInput>
+              </>
+            ),
+          }}
+        ></Row>
+      );
+    };
   },
 });

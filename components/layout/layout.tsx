@@ -1,93 +1,77 @@
-import {
-  createVNode,
-  defineComponent,
-  inject,
-  provide,
-  toRefs,
-  ref,
-  ExtractPropTypes,
-  HTMLAttributes,
-} from 'vue';
-import PropTypes from '../_util/vue-types';
-import classNames from '../_util/classNames';
-import { defaultConfigProvider } from '../config-provider';
-import { flattenChildren } from '../_util/props-util';
+import type { ExtractPropTypes, HTMLAttributes } from 'vue';
+import { computed, createVNode, defineComponent, provide, ref } from 'vue';
+import useConfigInject from '../_util/hooks/useConfigInject';
+import { SiderHookProviderKey } from './injectionKey';
 
-export const basicProps = {
-  prefixCls: PropTypes.string,
-  hasSider: PropTypes.looseBool,
-  tagName: PropTypes.string,
-};
+export const basicProps = () => ({
+  prefixCls: String,
+  hasSider: { type: Boolean, default: undefined },
+  tagName: String,
+});
 
-export type BasicProps = Partial<ExtractPropTypes<typeof basicProps>> & HTMLAttributes;
-
-export interface SiderHookProvider {
-  addSider?: (id: string) => void;
-  removeSider?: (id: string) => void;
-}
+export type BasicProps = Partial<ExtractPropTypes<ReturnType<typeof basicProps>>> & HTMLAttributes;
 
 type GeneratorArgument = {
   suffixCls: string;
-  tagName: string;
+  tagName: 'header' | 'footer' | 'main' | 'section';
   name: string;
 };
 
 function generator({ suffixCls, tagName, name }: GeneratorArgument) {
   return (BasicComponent: typeof Basic) => {
-    const Adapter = defineComponent<BasicProps>({
+    const Adapter = defineComponent({
       name,
+      props: basicProps(),
       setup(props, { slots }) {
-        const { getPrefixCls } = inject('configProvider', defaultConfigProvider);
+        const { prefixCls } = useConfigInject(suffixCls, props);
         return () => {
-          const { prefixCls: customizePrefixCls } = props;
-          const prefixCls = getPrefixCls(suffixCls, customizePrefixCls);
           const basicComponentProps = {
-            prefixCls,
             ...props,
+            prefixCls: prefixCls.value,
             tagName,
           };
-          return (
-            <BasicComponent {...basicComponentProps}>
-              {flattenChildren(slots.default?.())}
-            </BasicComponent>
-          );
+          return <BasicComponent {...basicComponentProps} v-slots={slots}></BasicComponent>;
         };
       },
     });
-    Adapter.props = basicProps;
     return Adapter;
   };
 }
 
 const Basic = defineComponent({
-  props: basicProps,
+  props: basicProps(),
   setup(props, { slots }) {
-    const { prefixCls, tagName } = toRefs(props);
-    return () => createVNode(tagName.value, { class: prefixCls.value }, slots.default?.());
+    return () => createVNode(props.tagName, { class: props.prefixCls }, slots);
   },
 });
 
 const BasicLayout = defineComponent({
-  props: basicProps,
+  props: basicProps(),
   setup(props, { slots }) {
+    const { direction } = useConfigInject('', props);
     const siders = ref<string[]>([]);
-    const siderHookProvider: SiderHookProvider = {
-      addSider: id => {
+    const siderHookProvider = {
+      addSider: (id: string) => {
         siders.value = [...siders.value, id];
       },
-      removeSider: id => {
+      removeSider: (id: string) => {
         siders.value = siders.value.filter(currentId => currentId !== id);
       },
     };
-    provide('siderHook', siderHookProvider);
 
-    return () => {
-      const { prefixCls, hasSider, tagName } = props;
-      const divCls = classNames(prefixCls, {
+    provide(SiderHookProviderKey, siderHookProvider);
+    const divCls = computed(() => {
+      const { prefixCls, hasSider } = props;
+      return {
+        [`${prefixCls}`]: true,
         [`${prefixCls}-has-sider`]:
           typeof hasSider === 'boolean' ? hasSider : siders.value.length > 0,
-      });
-      return createVNode(tagName, { class: divCls }, slots.default?.());
+        [`${prefixCls}-rtl`]: direction.value === 'rtl',
+      };
+    });
+    return () => {
+      const { tagName } = props;
+      return createVNode(tagName, { class: divCls.value }, slots);
     };
   },
 });
@@ -116,12 +100,6 @@ const Content = generator({
   name: 'ALayoutContent',
 })(Basic);
 
-Layout.Header = Header;
-Layout.Footer = Footer;
-Layout.Content = Content;
+export { Header, Footer, Content };
 
-export default Layout as typeof Layout & {
-  readonly Header: typeof Header;
-  readonly Footer: typeof Footer;
-  readonly Content: typeof Content;
-};
+export default Layout;
